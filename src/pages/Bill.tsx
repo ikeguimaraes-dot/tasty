@@ -1,29 +1,428 @@
 import { useEffect, useState } from 'react'
 import { Link } from 'react-router-dom'
-import { ArrowLeft, ScanLine, Plus, X, Receipt, Copy, Save, UsersRound, Trash2, Check } from 'lucide-react'
+import {
+  ArrowLeft,
+  ScanLine,
+  Plus,
+  X,
+  Receipt,
+  Copy,
+  Save,
+  UsersRound,
+  Trash2,
+  Check,
+} from 'lucide-react'
 import { useApp } from '../lib/context'
 import { supabase } from '../lib/supabase'
 import { errorMessage, money, splitBill, parseReceipt } from '../lib/utils'
 import type { BillData } from '../lib/types'
 import { Button, IconButton, PageHeading } from '../components/ui'
-const freshBill=():BillData=>({people:['Você'],items:[],service:10})
-export function Bill(){
-  const {user,notify}=useApp();const [data,setData]=useState<BillData>(freshBill),[billId,setBillId]=useState<string|null>(null),[loaded,setLoaded]=useState(false),[person,setPerson]=useState(''),[itemName,setItemName]=useState(''),[amount,setAmount]=useState(''),[scanning,setScanning]=useState(false),[progress,setProgress]=useState(0),[busy,setBusy]=useState(false)
-  const key=`tasty-bill-${user?.id||'guest'}`
-  useEffect(()=>{let active=true;setLoaded(false);async function restore(){
-    try{const saved=JSON.parse(localStorage.getItem(key)||'null');if(saved?.data?.people&&saved?.data?.items){setData(saved.data);setBillId(saved.id);return}
-      if(user){const {data:snapshot,error}=await supabase.from('bills').select('id,data').eq('user_id',user.id).order('updated_at',{ascending:false}).limit(1).maybeSingle();if(error)throw error;if(active&&snapshot){setData(snapshot.data as BillData);setBillId(snapshot.id);return}}
-      if(active){setData(freshBill());setBillId(null)}
-    }catch(e){if(active)notify(errorMessage(e),'error')}finally{if(active)setLoaded(true)}
-  }void restore();return()=>{active=false}},[key,user,notify])
-  useEffect(()=>{if(loaded)localStorage.setItem(key,JSON.stringify({data,id:billId}))},[data,billId,key,loaded])
-  const summary=splitBill(data)
-  async function scan(file:File){if(file.size>12*1024*1024){notify('Escolha uma imagem de até 12 MB.','error');return}setScanning(true);setProgress(0);let worker:import('tesseract.js').Worker|undefined;try{
-    const {createWorker}=await import('tesseract.js');worker=await createWorker('por',1,{logger:m=>{if(m.status==='recognizing text')setProgress(Math.round(m.progress*100))}})
-    const result=await worker.recognize(file);const items=parseReceipt(result.data.text)
-    if(!items.length)notify('Não encontramos itens com preço. Tente uma foto mais nítida ou adicione os itens abaixo.','error')
-    else {setData(d=>({...d,items:[...d.items,...items.map(i=>({...i,people:[...d.people]}))]}));notify(`${items.length} itens encontrados. Confira os nomes e valores antes de dividir.`)}
-  }catch{notify('Não foi possível ler essa foto. Você pode adicionar os itens manualmente.','error')}finally{await worker?.terminate();setScanning(false)}}
-  async function save(){setBusy(true);try{if(user){const {data:saved,error}=await supabase.from('bills').upsert({...(billId?{id:billId}:{}),user_id:user.id,title:'Nossa conta',data,updated_at:new Date().toISOString()}).select('id').single();if(error)throw error;setBillId(saved.id);notify('Conta salva no seu perfil.')}else{localStorage.setItem(key,JSON.stringify({data,id:null}));notify('Conta salva neste dispositivo.')}}catch(e){notify(errorMessage(e),'error')}finally{setBusy(false)}}
-  return <div className="bill-page"><Link className="back-link" to="/create"><ArrowLeft size={20}/>Voltar</Link><PageHeading eyebrow="AMIGOS À MESA, CONTA EM DIA" title="Conta Justa" text="Cada pessoa paga só o que consumiu."/><label className="receipt-upload"><ScanLine size={30}/><div><strong>{scanning?`Lendo sua conta… ${progress}%`:'Tem uma foto da conta?'}</strong><span>{scanning?'Isso pode levar alguns instantes.':'Adicione uma foto e confira os itens encontrados.'}</span></div><Plus size={23}/><input type="file" accept="image/*" aria-label="Escanear foto da conta" disabled={scanning} onChange={e=>{if(e.target.files?.[0])void scan(e.target.files[0])}}/></label><section className="bill-section"><h2><UsersRound size={21}/>Quem está na mesa?</h2><div className="bill-people">{data.people.map(p=><span key={p}>{p}{data.people.length>1&&<IconButton label={`Remover ${p}`} onClick={()=>setData(d=>({...d,people:d.people.filter(x=>x!==p),items:d.items.map(i=>({...i,people:i.people.filter(x=>x!==p)}))}))}><X size={14}/></IconButton>}</span>)}</div><form className="inline-form" onSubmit={e=>{e.preventDefault();const name=person.trim();if(!name)return;if(data.people.includes(name)){notify('Essa pessoa já está na mesa.','error');return}setData(d=>({...d,people:[...d.people,name]}));setPerson('')}}><input aria-label="Nome da pessoa" placeholder="Nome de quem vai dividir" value={person} maxLength={30} onChange={e=>setPerson(e.target.value)}/><Button type="submit" className="outline-button" disabled={!person.trim()}><Plus size={18}/>Adicionar</Button></form></section><section className="bill-section"><h2><Receipt size={21}/>O que vocês pediram?</h2><form className="bill-add-item" onSubmit={e=>{e.preventDefault();const value=Number(amount.replace(',','.'));if(!itemName.trim()||!Number.isFinite(value)||value<=0)return;setData(d=>({...d,items:[...d.items,{id:crypto.randomUUID(),name:itemName.trim(),amount:value,people:[...d.people]}]}));setItemName('');setAmount('')}}><input aria-label="Nome do item" placeholder="Ex.: hambúrguer da casa" value={itemName} maxLength={100} required onChange={e=>setItemName(e.target.value)}/><input aria-label="Valor do item" placeholder="R$ 0,00" inputMode="decimal" value={amount} required onChange={e=>setAmount(e.target.value)}/><IconButton label="Adicionar item" type="submit"><Plus/></IconButton></form><div className="bill-items">{data.items.map(item=><article key={item.id} className="bill-item"><div><input aria-label="Editar nome do item" value={item.name} onChange={e=>setData(d=>({...d,items:d.items.map(i=>i.id===item.id?{...i,name:e.target.value}:i)}))}/><input className="item-price" type="number" min="0" step="0.01" aria-label={`Valor de ${item.name}`} value={item.amount} onChange={e=>{const value=Math.max(0,Number(e.target.value)||0);setData(d=>({...d,items:d.items.map(i=>i.id===item.id?{...i,amount:value}:i)}))}}/><IconButton label={`Remover ${item.name}`} onClick={()=>setData(d=>({...d,items:d.items.filter(i=>i.id!==item.id)}))}><Trash2 size={16}/></IconButton></div><span className="muted small">Quem consumiu?</span><div className="consumer-chips">{data.people.map(p=><button key={p} aria-pressed={item.people.includes(p)} className={item.people.includes(p)?'active':''} onClick={()=>setData(d=>({...d,items:d.items.map(i=>i.id===item.id?{...i,people:i.people.includes(p)?i.people.filter(x=>x!==p):[...i.people,p]}:i)}))}>{item.people.includes(p)&&<Check size={13}/>} {p}</button>)}</div>{!item.people.length&&<span className="item-unassigned">Selecione quem consumiu este item.</span>}</article>)}</div>{data.items.length===0&&<p className="bill-empty">Adicione o primeiro item para começar a dividir.</p>}</section><section className="bill-summary"><div className="service-fee"><label htmlFor="service">Serviço (%)</label><input id="service" aria-label="Taxa de serviço" type="number" min="0" max="100" value={data.service} onChange={e=>setData(d=>({...d,service:Math.min(100,Math.max(0,Number(e.target.value)))}))}/></div><div className="bill-totals"><p>Subtotal<span>{money(summary.subtotal/100)}</span></p><p>Serviço ({data.service}%)<span>{money(summary.service/100)}</span></p><p className="grand-total">Total da mesa<strong>{money(summary.total/100)}</strong></p></div><div className="individual-totals">{data.people.map(p=><div key={p}><span className="avatar avatar-initial">{p[0]}</span><strong>{p}</strong><b>{money(summary.totals[p]/100)}</b></div>)}</div>{summary.unassigned>0&&<p className="form-error">Faltam {money(summary.unassigned/100)} para atribuir. Selecione quem consumiu cada item.</p>}<Button disabled={!data.items.length||summary.unassigned>0} onClick={async()=>{try{await navigator.clipboard.writeText(`Nossa conta no Tasty 🍽️\n${data.people.map(p=>`${p}: ${money(summary.totals[p]/100)}`).join('\n')}\nTotal: ${money(summary.total/100)} (serviço de ${data.service}% incluído)`);notify('Divisão copiada! Agora é só compartilhar com a mesa.')}catch{notify('Não foi possível copiar. Confira os valores na tela.','error')}}}><Copy size={18}/>Copiar divisão</Button><Button className="outline-button" loading={busy} disabled={!data.items.length} onClick={()=>void save()}><Save size={18}/>Salvar conta</Button></section><p className="form-footnote">A leitura da foto acontece no seu navegador. Confira os valores antes de compartilhar.</p></div>
+const freshBill = (): BillData => ({ people: ['Você'], items: [], service: 10 })
+export function Bill() {
+  const { user, notify } = useApp()
+  const [data, setData] = useState<BillData>(freshBill),
+    [billId, setBillId] = useState<string | null>(null),
+    [loaded, setLoaded] = useState(false),
+    [person, setPerson] = useState(''),
+    [itemName, setItemName] = useState(''),
+    [amount, setAmount] = useState(''),
+    [scanning, setScanning] = useState(false),
+    [progress, setProgress] = useState(0),
+    [busy, setBusy] = useState(false)
+  const key = `tasty-bill-${user?.id || 'guest'}`
+  useEffect(() => {
+    let active = true
+    setLoaded(false)
+    async function restore() {
+      try {
+        const saved = JSON.parse(localStorage.getItem(key) || 'null')
+        if (saved?.data?.people && saved?.data?.items) {
+          setData(saved.data)
+          setBillId(saved.id)
+          return
+        }
+        if (user) {
+          const { data: snapshot, error } = await supabase
+            .from('bills')
+            .select('id,data')
+            .eq('user_id', user.id)
+            .order('updated_at', { ascending: false })
+            .limit(1)
+            .maybeSingle()
+          if (error) throw error
+          if (active && snapshot) {
+            setData(snapshot.data as BillData)
+            setBillId(snapshot.id)
+            return
+          }
+        }
+        if (active) {
+          setData(freshBill())
+          setBillId(null)
+        }
+      } catch (e) {
+        if (active) notify(errorMessage(e), 'error')
+      } finally {
+        if (active) setLoaded(true)
+      }
+    }
+    void restore()
+    return () => {
+      active = false
+    }
+  }, [key, user, notify])
+  useEffect(() => {
+    if (loaded) localStorage.setItem(key, JSON.stringify({ data, id: billId }))
+  }, [data, billId, key, loaded])
+  const summary = splitBill(data)
+  async function scan(file: File) {
+    if (file.size > 12 * 1024 * 1024) {
+      notify('Escolha uma imagem de até 12 MB.', 'error')
+      return
+    }
+    setScanning(true)
+    setProgress(0)
+    let worker: import('tesseract.js').Worker | undefined
+    try {
+      const { createWorker } = await import('tesseract.js')
+      worker = await createWorker('por', 1, {
+        logger: (m) => {
+          if (m.status === 'recognizing text') setProgress(Math.round(m.progress * 100))
+        },
+      })
+      const result = await worker.recognize(file)
+      const items = parseReceipt(result.data.text)
+      if (!items.length)
+        notify(
+          'Não encontramos itens com preço. Tente uma foto mais nítida ou adicione os itens abaixo.',
+          'error',
+        )
+      else {
+        setData((d) => ({
+          ...d,
+          items: [...d.items, ...items.map((i) => ({ ...i, people: [...d.people] }))],
+        }))
+        notify(`${items.length} itens encontrados. Confira os nomes e valores antes de dividir.`)
+      }
+    } catch {
+      notify('Não foi possível ler essa foto. Você pode adicionar os itens manualmente.', 'error')
+    } finally {
+      await worker?.terminate()
+      setScanning(false)
+    }
+  }
+  async function save() {
+    setBusy(true)
+    try {
+      if (user) {
+        const { data: saved, error } = await supabase
+          .from('bills')
+          .upsert({
+            ...(billId ? { id: billId } : {}),
+            user_id: user.id,
+            title: 'Nossa conta',
+            data,
+            updated_at: new Date().toISOString(),
+          })
+          .select('id')
+          .single()
+        if (error) throw error
+        setBillId(saved.id)
+        notify('Conta salva no seu perfil.')
+      } else {
+        localStorage.setItem(key, JSON.stringify({ data, id: null }))
+        notify('Conta salva neste dispositivo.')
+      }
+    } catch (e) {
+      notify(errorMessage(e), 'error')
+    } finally {
+      setBusy(false)
+    }
+  }
+  return (
+    <div className="bill-page">
+      <Link className="back-link" to="/create">
+        <ArrowLeft size={20} />
+        Voltar
+      </Link>
+      <PageHeading
+        eyebrow="AMIGOS À MESA, CONTA EM DIA"
+        title="Conta Justa"
+        text="Cada pessoa paga só o que consumiu."
+      />
+      <label className="receipt-upload">
+        <ScanLine size={30} />
+        <div>
+          <strong>{scanning ? `Lendo sua conta… ${progress}%` : 'Tem uma foto da conta?'}</strong>
+          <span>
+            {scanning
+              ? 'Isso pode levar alguns instantes.'
+              : 'Adicione uma foto e confira os itens encontrados.'}
+          </span>
+        </div>
+        <Plus size={23} />
+        <input
+          type="file"
+          accept="image/*"
+          aria-label="Escanear foto da conta"
+          disabled={scanning}
+          onChange={(e) => {
+            if (e.target.files?.[0]) void scan(e.target.files[0])
+          }}
+        />
+      </label>
+      <section className="bill-section">
+        <h2>
+          <UsersRound size={21} />
+          Quem está na mesa?
+        </h2>
+        <div className="bill-people">
+          {data.people.map((p) => (
+            <span key={p}>
+              {p}
+              {data.people.length > 1 && (
+                <IconButton
+                  label={`Remover ${p}`}
+                  onClick={() =>
+                    setData((d) => ({
+                      ...d,
+                      people: d.people.filter((x) => x !== p),
+                      items: d.items.map((i) => ({
+                        ...i,
+                        people: i.people.filter((x) => x !== p),
+                      })),
+                    }))
+                  }
+                >
+                  <X size={14} />
+                </IconButton>
+              )}
+            </span>
+          ))}
+        </div>
+        <form
+          className="inline-form"
+          onSubmit={(e) => {
+            e.preventDefault()
+            const name = person.trim()
+            if (!name) return
+            if (data.people.includes(name)) {
+              notify('Essa pessoa já está na mesa.', 'error')
+              return
+            }
+            setData((d) => ({ ...d, people: [...d.people, name] }))
+            setPerson('')
+          }}
+        >
+          <input
+            aria-label="Nome da pessoa"
+            placeholder="Nome de quem vai dividir"
+            value={person}
+            maxLength={30}
+            onChange={(e) => setPerson(e.target.value)}
+          />
+          <Button type="submit" className="outline-button" disabled={!person.trim()}>
+            <Plus size={18} />
+            Adicionar
+          </Button>
+        </form>
+      </section>
+      <section className="bill-section">
+        <h2>
+          <Receipt size={21} />O que vocês pediram?
+        </h2>
+        <form
+          className="bill-add-item"
+          onSubmit={(e) => {
+            e.preventDefault()
+            const value = Number(amount.replace(',', '.'))
+            if (!itemName.trim() || !Number.isFinite(value) || value <= 0) return
+            setData((d) => ({
+              ...d,
+              items: [
+                ...d.items,
+                {
+                  id: crypto.randomUUID(),
+                  name: itemName.trim(),
+                  amount: value,
+                  people: [...d.people],
+                },
+              ],
+            }))
+            setItemName('')
+            setAmount('')
+          }}
+        >
+          <input
+            aria-label="Nome do item"
+            placeholder="Ex.: hambúrguer da casa"
+            value={itemName}
+            maxLength={100}
+            required
+            onChange={(e) => setItemName(e.target.value)}
+          />
+          <input
+            aria-label="Valor do item"
+            placeholder="R$ 0,00"
+            inputMode="decimal"
+            value={amount}
+            required
+            onChange={(e) => setAmount(e.target.value)}
+          />
+          <IconButton label="Adicionar item" type="submit">
+            <Plus />
+          </IconButton>
+        </form>
+        <div className="bill-items">
+          {data.items.map((item) => (
+            <article key={item.id} className="bill-item">
+              <div>
+                <input
+                  aria-label="Editar nome do item"
+                  value={item.name}
+                  onChange={(e) =>
+                    setData((d) => ({
+                      ...d,
+                      items: d.items.map((i) =>
+                        i.id === item.id ? { ...i, name: e.target.value } : i,
+                      ),
+                    }))
+                  }
+                />
+                <input
+                  className="item-price"
+                  type="number"
+                  min="0"
+                  step="0.01"
+                  aria-label={`Valor de ${item.name}`}
+                  value={item.amount}
+                  onChange={(e) => {
+                    const value = Math.max(0, Number(e.target.value) || 0)
+                    setData((d) => ({
+                      ...d,
+                      items: d.items.map((i) => (i.id === item.id ? { ...i, amount: value } : i)),
+                    }))
+                  }}
+                />
+                <IconButton
+                  label={`Remover ${item.name}`}
+                  onClick={() =>
+                    setData((d) => ({ ...d, items: d.items.filter((i) => i.id !== item.id) }))
+                  }
+                >
+                  <Trash2 size={16} />
+                </IconButton>
+              </div>
+              <span className="muted small">Quem consumiu?</span>
+              <div className="consumer-chips">
+                {data.people.map((p) => (
+                  <button
+                    key={p}
+                    aria-pressed={item.people.includes(p)}
+                    className={item.people.includes(p) ? 'active' : ''}
+                    onClick={() =>
+                      setData((d) => ({
+                        ...d,
+                        items: d.items.map((i) =>
+                          i.id === item.id
+                            ? {
+                                ...i,
+                                people: i.people.includes(p)
+                                  ? i.people.filter((x) => x !== p)
+                                  : [...i.people, p],
+                              }
+                            : i,
+                        ),
+                      }))
+                    }
+                  >
+                    {item.people.includes(p) && <Check size={13} />} {p}
+                  </button>
+                ))}
+              </div>
+              {!item.people.length && (
+                <span className="item-unassigned">Selecione quem consumiu este item.</span>
+              )}
+            </article>
+          ))}
+        </div>
+        {data.items.length === 0 && (
+          <p className="bill-empty">Adicione o primeiro item para começar a dividir.</p>
+        )}
+      </section>
+      <section className="bill-summary">
+        <div className="service-fee">
+          <label htmlFor="service">Serviço (%)</label>
+          <input
+            id="service"
+            aria-label="Taxa de serviço"
+            type="number"
+            min="0"
+            max="100"
+            value={data.service}
+            onChange={(e) =>
+              setData((d) => ({
+                ...d,
+                service: Math.min(100, Math.max(0, Number(e.target.value))),
+              }))
+            }
+          />
+        </div>
+        <div className="bill-totals">
+          <p>
+            Subtotal<span>{money(summary.subtotal / 100)}</span>
+          </p>
+          <p>
+            Serviço ({data.service}%)<span>{money(summary.service / 100)}</span>
+          </p>
+          <p className="grand-total">
+            Total da mesa<strong>{money(summary.total / 100)}</strong>
+          </p>
+        </div>
+        <div className="individual-totals">
+          {data.people.map((p) => (
+            <div key={p}>
+              <span className="avatar avatar-initial">{p[0]}</span>
+              <strong>{p}</strong>
+              <b>{money(summary.totals[p] / 100)}</b>
+            </div>
+          ))}
+        </div>
+        {summary.unassigned > 0 && (
+          <p className="form-error">
+            Faltam {money(summary.unassigned / 100)} para atribuir. Selecione quem consumiu cada
+            item.
+          </p>
+        )}
+        <Button
+          disabled={!data.items.length || summary.unassigned > 0}
+          onClick={async () => {
+            try {
+              await navigator.clipboard.writeText(
+                `Nossa conta no Tasty 🍽️\n${data.people.map((p) => `${p}: ${money(summary.totals[p] / 100)}`).join('\n')}\nTotal: ${money(summary.total / 100)} (serviço de ${data.service}% incluído)`,
+              )
+              notify('Divisão copiada! Agora é só compartilhar com a mesa.')
+            } catch {
+              notify('Não foi possível copiar. Confira os valores na tela.', 'error')
+            }
+          }}
+        >
+          <Copy size={18} />
+          Copiar divisão
+        </Button>
+        <Button
+          className="outline-button"
+          loading={busy}
+          disabled={!data.items.length}
+          onClick={() => void save()}
+        >
+          <Save size={18} />
+          Salvar conta
+        </Button>
+      </section>
+      <p className="form-footnote">
+        A leitura da foto acontece no seu navegador. Confira os valores antes de compartilhar.
+      </p>
+    </div>
+  )
 }

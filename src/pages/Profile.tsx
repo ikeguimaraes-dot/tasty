@@ -1,28 +1,520 @@
 import { useEffect, useState } from 'react'
 import { Link, useNavigate, useParams } from 'react-router-dom'
-import { MapPin, Settings, Camera, LogOut, ArrowLeft, Bookmark, ScanLine, ChevronRight, Bell, Heart, MessageCircle, UserPlus, Check } from 'lucide-react'
+import {
+  MapPin,
+  Settings,
+  Camera,
+  LogOut,
+  ArrowLeft,
+  Bookmark,
+  ScanLine,
+  ChevronRight,
+  Bell,
+  Heart,
+  MessageCircle,
+  UserPlus,
+  Check,
+} from 'lucide-react'
 import { useApp } from '../lib/context'
 import { supabase, reviewSelect, uploadPhoto } from '../lib/supabase'
 import { errorMessage, timeAgo } from '../lib/utils'
 import type { Profile as ProfileType, Review } from '../lib/types'
-import { Avatar, TastyStar, PageHeading, IconButton, Modal, Button, Loading, EmptyState } from '../components/ui'
+import {
+  Avatar,
+  TastyStar,
+  PageHeading,
+  IconButton,
+  Modal,
+  Button,
+  Loading,
+  EmptyState,
+} from '../components/ui'
 import { ReviewCard, FollowButton, DishCard } from '../components/Social'
 import { MobileHeader } from '../components/Shell'
 
-export function Profile(){
-  const {id}=useParams();const {profile,user,people,reviews:feed,setReviews:saveFeed,dishes,restaurants,bookmarks,notify,refreshProfile,following}=useApp();const navigate=useNavigate();const own=!id||id===user?.id;const targetId=own?user?.id:id
-  const [person,setPerson]=useState<ProfileType|null>(null),[reviews,setReviews]=useState<Review[]>([]),[checkins,setCheckins]=useState<{id:string;rating:number;created_at:string;restaurants:{name:string}}[]>([]),[followers,setFollowers]=useState(0),[followingCount,setFollowingCount]=useState(0),[loading,setLoading]=useState(true),[editing,setEditing]=useState(false),[tab,setTab]=useState('reviews')
-  useEffect(()=>{if(!targetId){setLoading(false);return}setLoading(true);Promise.all([supabase.from('profiles').select('*').eq('id',targetId).maybeSingle(),supabase.from('reviews').select(reviewSelect).eq('user_id',targetId).order('created_at',{ascending:false}),supabase.from('follows').select('*',{count:'exact',head:true}).eq('following_id',targetId),supabase.from('follows').select('*',{count:'exact',head:true}).eq('follower_id',targetId),own?supabase.from('checkins').select('*,restaurants(name)').eq('user_id',targetId).order('created_at',{ascending:false}):Promise.resolve({data:[],error:null})]).then(([p,r,f,fc,c])=>{const e=p.error||r.error||f.error||fc.error||c.error;if(e)notify(errorMessage(e),'error');setPerson(p.data);setReviews((r.data||[])as unknown as Review[]);saveFeed(list=>[...list,...((r.data||[])as unknown as Review[]).filter(x=>!list.some(y=>y.id===x.id))]);setFollowers(f.count||0);setFollowingCount(fc.count||0);setCheckins((c.data||[])as typeof checkins);setLoading(false)})},[targetId,own,notify,following,saveFeed])
-  const shown=own?profile:person||people.find(p=>p.id===id)
-  if(loading)return <Loading/>
-  if(own&&!user)return <div className="profile-page"><MobileHeader/><PageHeading title="Seu canto à mesa." text="Suas histórias, seus sabores, suas descobertas."/><EmptyState title="Toda boa história começa com uma conta" text="Crie seu perfil para avaliar pratos, seguir amigos e guardar os seus favoritos." action="Entrar no Tasty" to="/welcome?next=%2Fprofile"/></div>
-  if(!shown)return <EmptyState title="Perfil não encontrado" text="Vamos conhecer outras pessoas com bom gosto?" action="Descobrir pessoas" to="/discover?section=people"/>
-  return <div className="profile-page">{!own&&<Link className="back-link" to="/discover?section=people"><ArrowLeft size={20}/>Voltar</Link>}<div className="profile-cover"><span>COMER. DESCOBRIR. REPETIR.</span><TastyStar/><TastyStar/>{own&&<IconButton label="Editar perfil" onClick={()=>setEditing(true)}><Settings size={22}/></IconButton>}</div><div className="profile-info"><Avatar profile={shown} size={100}/><div className="profile-title"><div><h1>{shown.full_name}</h1><span>@{shown.username}</span></div>{own?<Button className="outline-button edit-profile-button" onClick={()=>setEditing(true)}>Editar perfil</Button>:<FollowButton person={shown}/>}</div><span className="profile-level"><TastyStar/>{reviews.length>=5?'Foodie da vizinhança':'Explorador de sabores'}{shown.is_demo&&<small>Perfil de exemplo</small>}</span><p>{shown.bio||'Em busca do próximo prato favorito.'}</p><span className="profile-city"><MapPin size={15}/>{shown.city}</span><div className="profile-stats"><span><strong>{reviews.length}</strong>avaliações</span><span><strong>{followers}</strong>seguidores</span><span><strong>{followingCount}</strong>seguindo</span></div></div><div className="filter-tabs profile-tabs"><button className={tab==='reviews'?'active':''} onClick={()=>setTab('reviews')}>Avaliações</button>{own&&<><button className={tab==='saved'?'active':''} onClick={()=>setTab('saved')}>Quero provar</button><button className={tab==='checkins'?'active':''} onClick={()=>setTab('checkins')}>Check-ins</button></>}</div>{tab==='reviews'?reviews.length?reviews.map(r=><ReviewCard key={r.id} review={feed.find(x=>x.id===r.id)||r}/>):<EmptyState title="A primeira história está por vir" text="Cada prato é uma chance de descobrir algo novo." action={own?'Avaliar um prato':undefined} to="/create"/>:tab==='saved'?bookmarks.length?<div className="dish-grid">{dishes.filter(d=>bookmarks.includes(d.id)).map(d=><DishCard dish={d} restaurant={restaurants.find(r=>r.id===d.restaurant_id)} key={d.id}/>)}</div>:<EmptyState title="Uma lista cheia de possibilidades" text="Salve os pratos que você quer experimentar." action="Descobrir pratos" to="/discover"/>:checkins.length?<div className="checkin-list">{checkins.map(c=><div key={c.id}><MapPin/><span><strong>{c.restaurants.name}</strong><small>{new Date(c.created_at).toLocaleDateString('pt-BR')}</small></span><TastyStar value={c.rating}/></div>)}</div>:<EmptyState title="Por onde você anda comendo?" text="Faça um check-in para registrar sua visita." action="Fazer check-in" to="/create"/>}
-    {own&&<div className="profile-links"><Link to="/bill"><ScanLine size={21}/><span>Minha conta compartilhada</span><ChevronRight size={19}/></Link><Link to="/saved"><Bookmark size={21}/><span>Pratos salvos</span><ChevronRight size={19}/></Link><button onClick={async()=>{const {error}=await supabase.auth.signOut();if(error)notify(errorMessage(error),'error');else{notify('Até a próxima boa descoberta!');navigate('/welcome')}}}><LogOut size={21}/><span>Sair da conta</span></button></div>}
-    {editing&&<EditProfile profile={shown} close={()=>setEditing(false)} saved={refreshProfile}/>}
-  </div>
+export function Profile() {
+  const { id } = useParams()
+  const {
+    profile,
+    user,
+    people,
+    reviews: feed,
+    setReviews: saveFeed,
+    dishes,
+    restaurants,
+    bookmarks,
+    notify,
+    refreshProfile,
+    following,
+  } = useApp()
+  const navigate = useNavigate()
+  const own = !id || id === user?.id
+  const targetId = own ? user?.id : id
+  const [person, setPerson] = useState<ProfileType | null>(null),
+    [reviews, setReviews] = useState<Review[]>([]),
+    [checkins, setCheckins] = useState<
+      { id: string; rating: number; created_at: string; restaurants: { name: string } }[]
+    >([]),
+    [followers, setFollowers] = useState(0),
+    [followingCount, setFollowingCount] = useState(0),
+    [loading, setLoading] = useState(true),
+    [editing, setEditing] = useState(false),
+    [tab, setTab] = useState('reviews')
+  useEffect(() => {
+    if (!targetId) {
+      setLoading(false)
+      return
+    }
+    setLoading(true)
+    Promise.all([
+      supabase.from('profiles').select('*').eq('id', targetId).maybeSingle(),
+      supabase
+        .from('reviews')
+        .select(reviewSelect)
+        .eq('user_id', targetId)
+        .order('created_at', { ascending: false }),
+      supabase
+        .from('follows')
+        .select('*', { count: 'exact', head: true })
+        .eq('following_id', targetId),
+      supabase
+        .from('follows')
+        .select('*', { count: 'exact', head: true })
+        .eq('follower_id', targetId),
+      own
+        ? supabase
+            .from('checkins')
+            .select('*,restaurants(name)')
+            .eq('user_id', targetId)
+            .order('created_at', { ascending: false })
+        : Promise.resolve({ data: [], error: null }),
+    ]).then(([p, r, f, fc, c]) => {
+      const e = p.error || r.error || f.error || fc.error || c.error
+      if (e) notify(errorMessage(e), 'error')
+      setPerson(p.data)
+      setReviews((r.data || []) as unknown as Review[])
+      saveFeed((list) => [
+        ...list,
+        ...((r.data || []) as unknown as Review[]).filter((x) => !list.some((y) => y.id === x.id)),
+      ])
+      setFollowers(f.count || 0)
+      setFollowingCount(fc.count || 0)
+      setCheckins((c.data || []) as typeof checkins)
+      setLoading(false)
+    })
+  }, [targetId, own, notify, following, saveFeed])
+  const shown = own ? profile : person || people.find((p) => p.id === id)
+  if (loading) return <Loading />
+  if (own && !user)
+    return (
+      <div className="profile-page">
+        <MobileHeader />
+        <PageHeading
+          title="Seu canto à mesa."
+          text="Suas histórias, seus sabores, suas descobertas."
+        />
+        <EmptyState
+          title="Toda boa história começa com uma conta"
+          text="Crie seu perfil para avaliar pratos, seguir amigos e guardar os seus favoritos."
+          action="Entrar no Tasty"
+          to="/welcome?next=%2Fprofile"
+        />
+      </div>
+    )
+  if (!shown)
+    return (
+      <EmptyState
+        title="Perfil não encontrado"
+        text="Vamos conhecer outras pessoas com bom gosto?"
+        action="Descobrir pessoas"
+        to="/discover?section=people"
+      />
+    )
+  return (
+    <div className="profile-page">
+      {!own && (
+        <Link className="back-link" to="/discover?section=people">
+          <ArrowLeft size={20} />
+          Voltar
+        </Link>
+      )}
+      <div className="profile-cover">
+        <span>COMER. DESCOBRIR. REPETIR.</span>
+        <TastyStar />
+        <TastyStar />
+        {own && (
+          <IconButton label="Editar perfil" onClick={() => setEditing(true)}>
+            <Settings size={22} />
+          </IconButton>
+        )}
+      </div>
+      <div className="profile-info">
+        <Avatar profile={shown} size={100} />
+        <div className="profile-title">
+          <div>
+            <h1>{shown.full_name}</h1>
+            <span>@{shown.username}</span>
+          </div>
+          {own ? (
+            <Button className="outline-button edit-profile-button" onClick={() => setEditing(true)}>
+              Editar perfil
+            </Button>
+          ) : (
+            <FollowButton person={shown} />
+          )}
+        </div>
+        <span className="profile-level">
+          <TastyStar />
+          {reviews.length >= 5 ? 'Foodie da vizinhança' : 'Explorador de sabores'}
+          {shown.is_demo && <small>Perfil de exemplo</small>}
+        </span>
+        <p>{shown.bio || 'Em busca do próximo prato favorito.'}</p>
+        <span className="profile-city">
+          <MapPin size={15} />
+          {shown.city}
+        </span>
+        <div className="profile-stats">
+          <span>
+            <strong>{reviews.length}</strong>avaliações
+          </span>
+          <span>
+            <strong>{followers}</strong>seguidores
+          </span>
+          <span>
+            <strong>{followingCount}</strong>seguindo
+          </span>
+        </div>
+      </div>
+      <div className="filter-tabs profile-tabs">
+        <button className={tab === 'reviews' ? 'active' : ''} onClick={() => setTab('reviews')}>
+          Avaliações
+        </button>
+        {own && (
+          <>
+            <button className={tab === 'saved' ? 'active' : ''} onClick={() => setTab('saved')}>
+              Quero provar
+            </button>
+            <button
+              className={tab === 'checkins' ? 'active' : ''}
+              onClick={() => setTab('checkins')}
+            >
+              Check-ins
+            </button>
+          </>
+        )}
+      </div>
+      {tab === 'reviews' ? (
+        reviews.length ? (
+          reviews.map((r) => (
+            <ReviewCard key={r.id} review={feed.find((x) => x.id === r.id) || r} />
+          ))
+        ) : (
+          <EmptyState
+            title="A primeira história está por vir"
+            text="Cada prato é uma chance de descobrir algo novo."
+            action={own ? 'Avaliar um prato' : undefined}
+            to="/create"
+          />
+        )
+      ) : tab === 'saved' ? (
+        bookmarks.length ? (
+          <div className="dish-grid">
+            {dishes
+              .filter((d) => bookmarks.includes(d.id))
+              .map((d) => (
+                <DishCard
+                  dish={d}
+                  restaurant={restaurants.find((r) => r.id === d.restaurant_id)}
+                  key={d.id}
+                />
+              ))}
+          </div>
+        ) : (
+          <EmptyState
+            title="Uma lista cheia de possibilidades"
+            text="Salve os pratos que você quer experimentar."
+            action="Descobrir pratos"
+            to="/discover"
+          />
+        )
+      ) : checkins.length ? (
+        <div className="checkin-list">
+          {checkins.map((c) => (
+            <div key={c.id}>
+              <MapPin />
+              <span>
+                <strong>{c.restaurants.name}</strong>
+                <small>{new Date(c.created_at).toLocaleDateString('pt-BR')}</small>
+              </span>
+              <TastyStar value={c.rating} />
+            </div>
+          ))}
+        </div>
+      ) : (
+        <EmptyState
+          title="Por onde você anda comendo?"
+          text="Faça um check-in para registrar sua visita."
+          action="Fazer check-in"
+          to="/create"
+        />
+      )}
+      {own && (
+        <div className="profile-links">
+          <Link to="/bill">
+            <ScanLine size={21} />
+            <span>Minha conta compartilhada</span>
+            <ChevronRight size={19} />
+          </Link>
+          <Link to="/saved">
+            <Bookmark size={21} />
+            <span>Pratos salvos</span>
+            <ChevronRight size={19} />
+          </Link>
+          <button
+            onClick={async () => {
+              const { error } = await supabase.auth.signOut()
+              if (error) notify(errorMessage(error), 'error')
+              else {
+                notify('Até a próxima boa descoberta!')
+                navigate('/welcome')
+              }
+            }}
+          >
+            <LogOut size={21} />
+            <span>Sair da conta</span>
+          </button>
+        </div>
+      )}
+      {editing && (
+        <EditProfile profile={shown} close={() => setEditing(false)} saved={refreshProfile} />
+      )}
+    </div>
+  )
 }
-function EditProfile({profile,close,saved}:{profile:ProfileType;close:()=>void;saved:()=>Promise<void>}){const {notify,user}=useApp();const [name,setName]=useState(profile.full_name),[username,setUsername]=useState(profile.username),[bio,setBio]=useState(profile.bio),[city,setCity]=useState(profile.city),[photo,setPhoto]=useState<File|null>(null),[busy,setBusy]=useState(false),[error,setError]=useState('');return <Modal title="Seu jeito de estar à mesa" onClose={close}><form className="form-stack" onSubmit={async e=>{e.preventDefault();setBusy(true);setError('');try{const avatar_url=photo?await uploadPhoto(photo,user!.id):profile.avatar_url;const {error}=await supabase.from('profiles').update({full_name:name,username,bio,city,avatar_url}).eq('id',user!.id);if(error)throw error;await saved();notify('Perfil atualizado!');close()}catch(e){setError(errorMessage(e))}finally{setBusy(false)}}}><label className="edit-avatar"><Avatar profile={profile} size={76}/><span><Camera size={18}/>{photo?photo.name:'Alterar foto'}</span><input type="file" accept="image/jpeg,image/png,image/webp" aria-label="Foto do perfil" onChange={e=>setPhoto(e.target.files?.[0]||null)}/></label><label>Nome<input required value={name} minLength={2} maxLength={60} onChange={e=>setName(e.target.value)}/></label><label>Nome de usuário<input required value={username} pattern="[a-z0-9_.]{3,24}" onChange={e=>setUsername(e.target.value.toLowerCase())}/></label><label>Sobre você<textarea value={bio} maxLength={180} onChange={e=>setBio(e.target.value)} placeholder="O que não pode faltar no seu prato?"/></label><label>Cidade<input value={city} required maxLength={60} onChange={e=>setCity(e.target.value)}/></label>{error&&<p className="form-error" role="alert">{error}</p>}<Button loading={busy} type="submit">Salvar meu perfil<Check size={18}/></Button></form></Modal>}
+function EditProfile({
+  profile,
+  close,
+  saved,
+}: {
+  profile: ProfileType
+  close: () => void
+  saved: () => Promise<void>
+}) {
+  const { notify, user } = useApp()
+  const [name, setName] = useState(profile.full_name),
+    [username, setUsername] = useState(profile.username),
+    [bio, setBio] = useState(profile.bio),
+    [city, setCity] = useState(profile.city),
+    [photo, setPhoto] = useState<File | null>(null),
+    [busy, setBusy] = useState(false),
+    [error, setError] = useState('')
+  return (
+    <Modal title="Seu jeito de estar à mesa" onClose={close}>
+      <form
+        className="form-stack"
+        onSubmit={async (e) => {
+          e.preventDefault()
+          setBusy(true)
+          setError('')
+          try {
+            const avatar_url = photo ? await uploadPhoto(photo, user!.id) : profile.avatar_url
+            const { error } = await supabase
+              .from('profiles')
+              .update({ full_name: name, username, bio, city, avatar_url })
+              .eq('id', user!.id)
+            if (error) throw error
+            await saved()
+            notify('Perfil atualizado!')
+            close()
+          } catch (e) {
+            setError(errorMessage(e))
+          } finally {
+            setBusy(false)
+          }
+        }}
+      >
+        <label className="edit-avatar">
+          <Avatar profile={profile} size={76} />
+          <span>
+            <Camera size={18} />
+            {photo ? photo.name : 'Alterar foto'}
+          </span>
+          <input
+            type="file"
+            accept="image/jpeg,image/png,image/webp"
+            aria-label="Foto do perfil"
+            onChange={(e) => setPhoto(e.target.files?.[0] || null)}
+          />
+        </label>
+        <label>
+          Nome
+          <input
+            required
+            value={name}
+            minLength={2}
+            maxLength={60}
+            onChange={(e) => setName(e.target.value)}
+          />
+        </label>
+        <label>
+          Nome de usuário
+          <input
+            required
+            value={username}
+            pattern="[a-z0-9_.]{3,24}"
+            onChange={(e) => setUsername(e.target.value.toLowerCase())}
+          />
+        </label>
+        <label>
+          Sobre você
+          <textarea
+            value={bio}
+            maxLength={180}
+            onChange={(e) => setBio(e.target.value)}
+            placeholder="O que não pode faltar no seu prato?"
+          />
+        </label>
+        <label>
+          Cidade
+          <input value={city} required maxLength={60} onChange={(e) => setCity(e.target.value)} />
+        </label>
+        {error && (
+          <p className="form-error" role="alert">
+            {error}
+          </p>
+        )}
+        <Button loading={busy} type="submit">
+          Salvar meu perfil
+          <Check size={18} />
+        </Button>
+      </form>
+    </Modal>
+  )
+}
 
-type Notice={id:string;name:string;avatar:string|null;text:string;time:string;to:string;type:'like'|'comment'|'follow'}
-export function Notifications(){const {user,notify}=useApp();const [items,setItems]=useState<Notice[]>([]),[loading,setLoading]=useState(true);useEffect(()=>{if(!user){setLoading(false);return}Promise.all([supabase.from('likes').select('*,profiles!likes_user_id_fkey(*),reviews!inner(user_id,dishes(name))').eq('reviews.user_id',user.id).neq('user_id',user.id).order('created_at',{ascending:false}).limit(30),supabase.from('comments').select('*,profiles!comments_user_id_fkey(*),reviews!inner(user_id,dishes(name))').eq('reviews.user_id',user.id).neq('user_id',user.id).order('created_at',{ascending:false}).limit(30),supabase.from('follows').select('*,profiles!follows_follower_id_fkey(*)').eq('following_id',user.id).order('created_at',{ascending:false}).limit(30)]).then(([likes,comments,follows])=>{if(likes.error||comments.error||follows.error)notify(errorMessage(likes.error||comments.error||follows.error),'error');setItems([...(likes.data||[]).map(x=>({id:`like-${x.user_id}-${x.review_id}`,name:x.profiles.full_name,avatar:x.profiles.avatar_url,text:`curtiu sua avaliação de ${x.reviews.dishes.name}.`,time:x.created_at,to:`/review/${x.review_id}`,type:'like' as const})),...(comments.data||[]).map(x=>({id:x.id,name:x.profiles.full_name,avatar:x.profiles.avatar_url,text:`comentou: “${x.content}”`,time:x.created_at,to:`/review/${x.review_id}`,type:'comment' as const})),...(follows.data||[]).map(x=>({id:`follow-${x.follower_id}`,name:x.profiles.full_name,avatar:x.profiles.avatar_url,text:'começou a seguir você. A mesa ficou maior!',time:x.created_at,to:`/people/${x.follower_id}`,type:'follow' as const}))].sort((a,b)=>b.time.localeCompare(a.time)));setLoading(false)})},[user,notify]);return <div className="notifications-page"><PageHeading eyebrow="O QUE ESTÁ ROLANDO" title="Novidades à mesa." text="As boas conversas começam por aqui."><Bell size={30}/></PageHeading>{loading?<Loading/>:!user?<EmptyState title="Junte-se à conversa" text="Entre para acompanhar suas interações com a comunidade." action="Entrar" to="/welcome?next=%2Fnotifications"/>:items.length?<div className="notifications-list">{items.map(n=><Link to={n.to} key={n.id}><Avatar profile={{full_name:n.name,avatar_url:n.avatar}} size={46}/><span><p><strong>{n.name}</strong> {n.text}</p><small>{timeAgo(n.time)}</small></span>{n.type==='like'?<Heart size={19}/>:n.type==='comment'?<MessageCircle size={19}/>:<UserPlus size={19}/>}</Link>)}</div>:<EmptyState title="Tudo tranquilo por aqui" text="Quando alguém seguir você, curtir ou comentar sua avaliação, a novidade aparece aqui." action="Descobrir pessoas" to="/discover?section=people"/>}</div>}
+type Notice = {
+  id: string
+  name: string
+  avatar: string | null
+  text: string
+  time: string
+  to: string
+  type: 'like' | 'comment' | 'follow'
+}
+export function Notifications() {
+  const { user, notify } = useApp()
+  const [items, setItems] = useState<Notice[]>([]),
+    [loading, setLoading] = useState(true)
+  useEffect(() => {
+    if (!user) {
+      setLoading(false)
+      return
+    }
+    Promise.all([
+      supabase
+        .from('likes')
+        .select('*,profiles!likes_user_id_fkey(*),reviews!inner(user_id,dishes(name))')
+        .eq('reviews.user_id', user.id)
+        .neq('user_id', user.id)
+        .order('created_at', { ascending: false })
+        .limit(30),
+      supabase
+        .from('comments')
+        .select('*,profiles!comments_user_id_fkey(*),reviews!inner(user_id,dishes(name))')
+        .eq('reviews.user_id', user.id)
+        .neq('user_id', user.id)
+        .order('created_at', { ascending: false })
+        .limit(30),
+      supabase
+        .from('follows')
+        .select('*,profiles!follows_follower_id_fkey(*)')
+        .eq('following_id', user.id)
+        .order('created_at', { ascending: false })
+        .limit(30),
+    ]).then(([likes, comments, follows]) => {
+      if (likes.error || comments.error || follows.error)
+        notify(errorMessage(likes.error || comments.error || follows.error), 'error')
+      setItems(
+        [
+          ...(likes.data || []).map((x) => ({
+            id: `like-${x.user_id}-${x.review_id}`,
+            name: x.profiles.full_name,
+            avatar: x.profiles.avatar_url,
+            text: `curtiu sua avaliação de ${x.reviews.dishes.name}.`,
+            time: x.created_at,
+            to: `/review/${x.review_id}`,
+            type: 'like' as const,
+          })),
+          ...(comments.data || []).map((x) => ({
+            id: x.id,
+            name: x.profiles.full_name,
+            avatar: x.profiles.avatar_url,
+            text: `comentou: “${x.content}”`,
+            time: x.created_at,
+            to: `/review/${x.review_id}`,
+            type: 'comment' as const,
+          })),
+          ...(follows.data || []).map((x) => ({
+            id: `follow-${x.follower_id}`,
+            name: x.profiles.full_name,
+            avatar: x.profiles.avatar_url,
+            text: 'começou a seguir você. A mesa ficou maior!',
+            time: x.created_at,
+            to: `/people/${x.follower_id}`,
+            type: 'follow' as const,
+          })),
+        ].sort((a, b) => b.time.localeCompare(a.time)),
+      )
+      setLoading(false)
+    })
+  }, [user, notify])
+  return (
+    <div className="notifications-page">
+      <PageHeading
+        eyebrow="O QUE ESTÁ ROLANDO"
+        title="Novidades à mesa."
+        text="As boas conversas começam por aqui."
+      >
+        <Bell size={30} />
+      </PageHeading>
+      {loading ? (
+        <Loading />
+      ) : !user ? (
+        <EmptyState
+          title="Junte-se à conversa"
+          text="Entre para acompanhar suas interações com a comunidade."
+          action="Entrar"
+          to="/welcome?next=%2Fnotifications"
+        />
+      ) : items.length ? (
+        <div className="notifications-list">
+          {items.map((n) => (
+            <Link to={n.to} key={n.id}>
+              <Avatar profile={{ full_name: n.name, avatar_url: n.avatar }} size={46} />
+              <span>
+                <p>
+                  <strong>{n.name}</strong> {n.text}
+                </p>
+                <small>{timeAgo(n.time)}</small>
+              </span>
+              {n.type === 'like' ? (
+                <Heart size={19} />
+              ) : n.type === 'comment' ? (
+                <MessageCircle size={19} />
+              ) : (
+                <UserPlus size={19} />
+              )}
+            </Link>
+          ))}
+        </div>
+      ) : (
+        <EmptyState
+          title="Tudo tranquilo por aqui"
+          text="Quando alguém seguir você, curtir ou comentar sua avaliação, a novidade aparece aqui."
+          action="Descobrir pessoas"
+          to="/discover?section=people"
+        />
+      )}
+    </div>
+  )
+}

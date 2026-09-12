@@ -1,9 +1,78 @@
-export type Profile = { id: string; username: string; full_name: string; bio: string; avatar_url: string | null; city: string; is_demo: boolean }
-export type Restaurant = { id: string; slug: string; name: string; category: string; description: string; address: string; city: string; latitude: number; longitude: number; image_url: string; price_range: string; is_featured: boolean; is_demo: boolean; rating: number; review_count: number; service_rating: number; ambience_rating: number }
-export type Dish = { id: string; restaurant_id: string; name: string; description: string; image_url: string; price: number; category: string; tags: string[]; rating: number; review_count: number }
-export type Review = { id: string; user_id: string; restaurant_id: string; dish_id: string; rating: number; service_rating: number | null; ambience_rating: number | null; content: string; photo_url: string | null; kind: 'review' | 'delivery'; recommend: boolean; created_at: string; profiles: Profile; dishes: Dish; restaurants: Restaurant; likes: { user_id: string }[]; comments: { id: string }[] }
-export type Comment = { id: string; user_id: string; content: string; created_at: string; profiles: Profile }
-export type GameRoom = { id: string; code: string; host_id: string; kind: 'roulette' | 'match'; max_players: number; result_dish_id: string | null; created_at: string }
+export type Profile = {
+  id: string
+  username: string
+  full_name: string
+  bio: string
+  avatar_url: string | null
+  city: string
+  is_demo: boolean
+}
+export type Restaurant = {
+  id: string
+  slug: string
+  name: string
+  category: string
+  description: string
+  address: string
+  city: string
+  latitude: number
+  longitude: number
+  image_url: string
+  price_range: string
+  is_featured: boolean
+  is_demo: boolean
+  rating: number
+  review_count: number
+  service_rating: number
+  ambience_rating: number
+}
+export type Dish = {
+  id: string
+  restaurant_id: string
+  name: string
+  description: string
+  image_url: string
+  price: number
+  category: string
+  tags: string[]
+  rating: number
+  review_count: number
+}
+export type Review = {
+  id: string
+  user_id: string
+  restaurant_id: string
+  dish_id: string
+  rating: number
+  service_rating: number | null
+  ambience_rating: number | null
+  content: string
+  photo_url: string | null
+  kind: 'review' | 'delivery'
+  recommend: boolean
+  created_at: string
+  profiles: Profile
+  dishes: Dish
+  restaurants: Restaurant
+  likes: { user_id: string }[]
+  comments: { id: string }[]
+}
+export type Comment = {
+  id: string
+  user_id: string
+  content: string
+  created_at: string
+  profiles: Profile
+}
+export type GameRoom = {
+  id: string
+  code: string
+  host_id: string
+  kind: 'roulette' | 'match'
+  max_players: number
+  result_dish_id: string | null
+  created_at: string
+}
 export type GameMember = { user_id: string; profiles: Profile }
 export type GameVote = { user_id: string; dish_id: string; liked: boolean }
 export type BillItem = { id: string; name: string; amount: number; people: string[] }

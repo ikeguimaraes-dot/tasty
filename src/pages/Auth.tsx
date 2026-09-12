@@ -1,53 +1,536 @@
 import { useEffect, useState } from 'react'
 import { Link, useNavigate, useSearchParams } from 'react-router-dom'
-import { ArrowRight, ArrowLeft, Apple, Utensils, Mail, Eye, EyeOff, AtSign, Check, MapPin, Zap, Map, Bell, MessageCircle, CalendarDays } from 'lucide-react'
+import {
+  ArrowRight,
+  ArrowLeft,
+  Apple,
+  Utensils,
+  Mail,
+  Eye,
+  EyeOff,
+  AtSign,
+  Check,
+  MapPin,
+  Zap,
+  Map,
+  Bell,
+  MessageCircle,
+  CalendarDays,
+} from 'lucide-react'
 import { useApp } from '../lib/context'
 import { supabase } from '../lib/supabase'
 import { errorMessage } from '../lib/utils'
 import { Logo, TastyStar, Button, IconButton, Avatar } from '../components/ui'
 
-function safeNext(value:string|null){return value?.startsWith('/')&&!value.startsWith('//')?value:'/'}
-export function Welcome(){
-  const {notify}=useApp();const [params]=useSearchParams();const next=safeNext(params.get('next'))
-  async function oauth(provider:'apple'|'google'){
-    try{
-      const res=await fetch(`${import.meta.env.VITE_SUPABASE_URL}/auth/v1/settings`,{headers:{apikey:import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY}})
-      if(!res.ok)throw new Error('Não foi possível consultar as opções de acesso.')
-      const settings=await res.json()
-      if(!settings.external?.[provider]){notify(`O acesso com ${provider==='apple'?'Apple':'Google'} ainda não está disponível. Continue com e-mail.`,'error');return}
-      const {error}=await supabase.auth.signInWithOAuth({provider,options:{redirectTo:`${window.location.origin}/onboarding`}})
-      if(error)throw error
-    }catch(e){notify(errorMessage(e),'error')}
+function safeNext(value: string | null) {
+  return value?.startsWith('/') && !value.startsWith('//') ? value : '/'
+}
+export function Welcome() {
+  const { notify } = useApp()
+  const [params] = useSearchParams()
+  const next = safeNext(params.get('next'))
+  async function oauth(provider: 'apple' | 'google') {
+    try {
+      const res = await fetch(`${import.meta.env.VITE_SUPABASE_URL}/auth/v1/settings`, {
+        headers: { apikey: import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY },
+      })
+      if (!res.ok) throw new Error('Não foi possível consultar as opções de acesso.')
+      const settings = await res.json()
+      if (!settings.external?.[provider]) {
+        notify(
+          `O acesso com ${provider === 'apple' ? 'Apple' : 'Google'} ainda não está disponível. Continue com e-mail.`,
+          'error',
+        )
+        return
+      }
+      const { error } = await supabase.auth.signInWithOAuth({
+        provider,
+        options: { redirectTo: `${window.location.origin}/onboarding` },
+      })
+      if (error) throw error
+    } catch (e) {
+      notify(errorMessage(e), 'error')
+    }
   }
-  return <div className="auth-layout"><section className="auth-brand-panel"><Link to="/" className="auth-brand-link"><Logo/></Link><span className="brand-panel-eyebrow">COMIDA BOA CONECTA.</span><h1>SUA MESA<br/>ESTÁ PRONTA<span>.</span></h1><div className="auth-polaroid"><img src="https://images.unsplash.com/photo-1473093295043-cdd812d0e601?auto=format&fit=crop&w=800&q=90" alt="Tagliatelle ao pesto com tomates frescos"/><span>Um prato. Mil histórias.<TastyStar value={5}/></span></div><TastyStar className="brand-float-star"/><p>Descobertas de verdade.<br/>Compartilhadas por quem ama comer.</p><span className="brand-panel-footer">RESTAURANTES · AMIGOS · PRATOS FAVORITOS</span></section>
-    <main className="welcome-panel"><div className="welcome-decoration"><TastyStar/><TastyStar/><TastyStar/></div><div className="welcome-main"><Logo/><h1>Bem-vindo ao Tasty <span>👋</span></h1><p>Descubra, avalie e compartilhe<br/>seus próximos pratos favoritos.</p><Utensils className="welcome-utensils" size={32}/><div className="welcome-buttons"><Button className="black" onClick={()=>void oauth('apple')}><Apple size={22} fill="currentColor"/>Continuar com Apple</Button><Button className="white" onClick={()=>void oauth('google')}><span className="google-g">G</span>Continuar com Google</Button><div className="star-divider"><span/><TastyStar/><span/></div><Link className="btn" to={`/auth?mode=signup&next=${encodeURIComponent(next)}`}>Continuar com E-mail<ArrowRight size={20}/></Link></div><Link className="login-link" to={`/auth?mode=login&next=${encodeURIComponent(next)}`}>Já tem uma conta? Entrar</Link><Link className="guest-link" to="/onboarding?step=0&guest=true">Dar uma olhada primeiro<ArrowRight size={16}/></Link></div><div className="welcome-bottom-stars"><TastyStar/><TastyStar/><TastyStar/></div><p className="welcome-footnote">O próximo prato inesquecível está por aqui.</p></main>
-  </div>
+  return (
+    <div className="auth-layout">
+      <section className="auth-brand-panel">
+        <Link to="/" className="auth-brand-link">
+          <Logo />
+        </Link>
+        <span className="brand-panel-eyebrow">COMIDA BOA CONECTA.</span>
+        <h1>
+          SUA MESA
+          <br />
+          ESTÁ PRONTA<span>.</span>
+        </h1>
+        <div className="auth-polaroid">
+          <img
+            src="https://images.unsplash.com/photo-1473093295043-cdd812d0e601?auto=format&fit=crop&w=800&q=90"
+            alt="Tagliatelle ao pesto com tomates frescos"
+          />
+          <span>
+            Um prato. Mil histórias.
+            <TastyStar value={5} />
+          </span>
+        </div>
+        <TastyStar className="brand-float-star" />
+        <p>
+          Descobertas de verdade.
+          <br />
+          Compartilhadas por quem ama comer.
+        </p>
+        <span className="brand-panel-footer">RESTAURANTES · AMIGOS · PRATOS FAVORITOS</span>
+      </section>
+      <main className="welcome-panel">
+        <div className="welcome-decoration">
+          <TastyStar />
+          <TastyStar />
+          <TastyStar />
+        </div>
+        <div className="welcome-main">
+          <Logo />
+          <h1>
+            Bem-vindo ao Tasty <span>👋</span>
+          </h1>
+          <p>
+            Descubra, avalie e compartilhe
+            <br />
+            seus próximos pratos favoritos.
+          </p>
+          <Utensils className="welcome-utensils" size={32} />
+          <div className="welcome-buttons">
+            <Button className="black" onClick={() => void oauth('apple')}>
+              <Apple size={22} fill="currentColor" />
+              Continuar com Apple
+            </Button>
+            <Button className="white" onClick={() => void oauth('google')}>
+              <span className="google-g">G</span>Continuar com Google
+            </Button>
+            <div className="star-divider">
+              <span />
+              <TastyStar />
+              <span />
+            </div>
+            <Link className="btn" to={`/auth?mode=signup&next=${encodeURIComponent(next)}`}>
+              Continuar com E-mail
+              <ArrowRight size={20} />
+            </Link>
+          </div>
+          <Link className="login-link" to={`/auth?mode=login&next=${encodeURIComponent(next)}`}>
+            Já tem uma conta? Entrar
+          </Link>
+          <Link className="guest-link" to="/onboarding?step=0&guest=true">
+            Dar uma olhada primeiro
+            <ArrowRight size={16} />
+          </Link>
+        </div>
+        <div className="welcome-bottom-stars">
+          <TastyStar />
+          <TastyStar />
+          <TastyStar />
+        </div>
+        <p className="welcome-footnote">O próximo prato inesquecível está por aqui.</p>
+      </main>
+    </div>
+  )
 }
-export function Auth(){
-  const [params]=useSearchParams();const mode=params.get('mode')||'signup';const navigate=useNavigate();const {notify,refreshProfile}=useApp()
-  const [email,setEmail]=useState(''),[password,setPassword]=useState(''),[name,setName]=useState(''),[show,setShow]=useState(false),[busy,setBusy]=useState(false),[sent,setSent]=useState(false),[error,setError]=useState('')
-  useEffect(()=>{setError('');setSent(false)},[mode])
-  const title=mode==='login'?'Bom te ver de novo.':mode==='forgot'?'Vamos recuperar seu acesso.':mode==='reset'?'Uma nova senha.':'Puxe uma cadeira.'
-  async function submit(e:React.FormEvent){e.preventDefault();setError('');setBusy(true);try{
-    if(mode==='forgot'){const {error}=await supabase.auth.resetPasswordForEmail(email,{redirectTo:`${window.location.origin}/auth?mode=reset`});if(error)throw error;setSent(true)}
-    else if(mode==='reset'){const {error}=await supabase.auth.updateUser({password});if(error)throw error;notify('Senha atualizada!');navigate('/')}
-    else if(mode==='login'){const {error}=await supabase.auth.signInWithPassword({email,password});if(error)throw error;navigate(safeNext(params.get('next')));void refreshProfile()}
-    else {const {data,error}=await supabase.auth.signUp({email,password,options:{data:{full_name:name},emailRedirectTo:`${window.location.origin}/onboarding`}});if(error)throw error;if(data.session)navigate('/onboarding');else setSent(true)}
-  }catch(e){setError(errorMessage(e))}finally{setBusy(false)}}
-  return <main className="auth-form-page"><Link to="/welcome" className="auth-back"><ArrowLeft size={21}/>Voltar</Link><Link to="/welcome"><Logo/></Link><div className="auth-form-card"><TastyStar/><span className="eyebrow">A GENTE GUARDOU SEU LUGAR</span><h1>{sent?'Confira seu e-mail.':title}</h1>{sent?<div className="email-sent"><Mail size={46}/><p>Enviamos um link para <strong>{email}</strong>. Abra a mensagem para {mode==='forgot'?'redefinir sua senha':'confirmar sua conta'}.</p><p className="muted">Pode levar alguns minutos. Confira também o spam.</p><Link className="btn" to="/auth?mode=login">Voltar para entrar</Link><button className="text-button" onClick={()=>setSent(false)}>Usar outro e-mail</button></div>:<><p>{mode==='signup'?'Crie sua conta e transforme boas refeições em boas recomendações.':mode==='forgot'?'Digite o e-mail da sua conta. Você receberá um link para criar uma nova senha.':mode==='reset'?'Escolha uma senha segura com pelo menos 8 caracteres.':'Seus pratos favoritos estão esperando por você.'}</p><form onSubmit={submit} className="form-stack">{mode==='signup'&&<label>Seu nome<input autoComplete="name" required minLength={2} maxLength={60} value={name} onChange={e=>setName(e.target.value)} placeholder="Como podemos te chamar?"/></label>}{mode!=='reset'&&<label>E-mail<input type="email" autoComplete="email" required value={email} onChange={e=>setEmail(e.target.value)} placeholder="voce@exemplo.com"/></label>}{mode!=='forgot'&&<label>Senha<div className="password-field"><input type={show?'text':'password'} autoComplete={mode==='login'?'current-password':'new-password'} required minLength={8} value={password} onChange={e=>setPassword(e.target.value)} placeholder="Pelo menos 8 caracteres"/><IconButton label={show?'Ocultar senha':'Mostrar senha'} onClick={()=>setShow(!show)}>{show?<EyeOff size={20}/>:<Eye size={20}/>}</IconButton></div></label>}{mode==='login'&&<Link className="forgot-link" to="/auth?mode=forgot">Esqueci minha senha</Link>}{error&&<p className="form-error" role="alert">{error}</p>}<Button type="submit" loading={busy}>{mode==='login'?'Entrar':mode==='signup'?'Criar minha conta':mode==='forgot'?'Enviar link de recuperação':'Salvar nova senha'}<ArrowRight size={19}/></Button></form>{(mode==='signup'||mode==='login')&&<Link className="login-link" to={`/auth?mode=${mode==='login'?'signup':'login'}&next=${encodeURIComponent(safeNext(params.get('next')))}`}>{mode==='login'?'Ainda não tem conta? Comece aqui':'Já tem uma conta? Entrar'}</Link>}</>}</div></main>
+export function Auth() {
+  const [params] = useSearchParams()
+  const mode = params.get('mode') || 'signup'
+  const navigate = useNavigate()
+  const { notify, refreshProfile } = useApp()
+  const [email, setEmail] = useState(''),
+    [password, setPassword] = useState(''),
+    [name, setName] = useState(''),
+    [show, setShow] = useState(false),
+    [busy, setBusy] = useState(false),
+    [sent, setSent] = useState(false),
+    [error, setError] = useState('')
+  useEffect(() => {
+    setError('')
+    setSent(false)
+  }, [mode])
+  const title =
+    mode === 'login'
+      ? 'Bom te ver de novo.'
+      : mode === 'forgot'
+        ? 'Vamos recuperar seu acesso.'
+        : mode === 'reset'
+          ? 'Uma nova senha.'
+          : 'Puxe uma cadeira.'
+  async function submit(e: React.FormEvent) {
+    e.preventDefault()
+    setError('')
+    setBusy(true)
+    try {
+      if (mode === 'forgot') {
+        const { error } = await supabase.auth.resetPasswordForEmail(email, {
+          redirectTo: `${window.location.origin}/auth?mode=reset`,
+        })
+        if (error) throw error
+        setSent(true)
+      } else if (mode === 'reset') {
+        const { error } = await supabase.auth.updateUser({ password })
+        if (error) throw error
+        notify('Senha atualizada!')
+        navigate('/')
+      } else if (mode === 'login') {
+        const { error } = await supabase.auth.signInWithPassword({ email, password })
+        if (error) throw error
+        navigate(safeNext(params.get('next')))
+        void refreshProfile()
+      } else {
+        const { data, error } = await supabase.auth.signUp({
+          email,
+          password,
+          options: {
+            data: { full_name: name },
+            emailRedirectTo: `${window.location.origin}/onboarding`,
+          },
+        })
+        if (error) throw error
+        if (data.session) navigate('/onboarding')
+        else setSent(true)
+      }
+    } catch (e) {
+      setError(errorMessage(e))
+    } finally {
+      setBusy(false)
+    }
+  }
+  return (
+    <main className="auth-form-page">
+      <Link to="/welcome" className="auth-back">
+        <ArrowLeft size={21} />
+        Voltar
+      </Link>
+      <Link to="/welcome">
+        <Logo />
+      </Link>
+      <div className="auth-form-card">
+        <TastyStar />
+        <span className="eyebrow">A GENTE GUARDOU SEU LUGAR</span>
+        <h1>{sent ? 'Confira seu e-mail.' : title}</h1>
+        {sent ? (
+          <div className="email-sent">
+            <Mail size={46} />
+            <p>
+              Enviamos um link para <strong>{email}</strong>. Abra a mensagem para{' '}
+              {mode === 'forgot' ? 'redefinir sua senha' : 'confirmar sua conta'}.
+            </p>
+            <p className="muted">Pode levar alguns minutos. Confira também o spam.</p>
+            <Link className="btn" to="/auth?mode=login">
+              Voltar para entrar
+            </Link>
+            <button className="text-button" onClick={() => setSent(false)}>
+              Usar outro e-mail
+            </button>
+          </div>
+        ) : (
+          <>
+            <p>
+              {mode === 'signup'
+                ? 'Crie sua conta e transforme boas refeições em boas recomendações.'
+                : mode === 'forgot'
+                  ? 'Digite o e-mail da sua conta. Você receberá um link para criar uma nova senha.'
+                  : mode === 'reset'
+                    ? 'Escolha uma senha segura com pelo menos 8 caracteres.'
+                    : 'Seus pratos favoritos estão esperando por você.'}
+            </p>
+            <form onSubmit={submit} className="form-stack">
+              {mode === 'signup' && (
+                <label>
+                  Seu nome
+                  <input
+                    autoComplete="name"
+                    required
+                    minLength={2}
+                    maxLength={60}
+                    value={name}
+                    onChange={(e) => setName(e.target.value)}
+                    placeholder="Como podemos te chamar?"
+                  />
+                </label>
+              )}
+              {mode !== 'reset' && (
+                <label>
+                  E-mail
+                  <input
+                    type="email"
+                    autoComplete="email"
+                    required
+                    value={email}
+                    onChange={(e) => setEmail(e.target.value)}
+                    placeholder="voce@exemplo.com"
+                  />
+                </label>
+              )}
+              {mode !== 'forgot' && (
+                <label>
+                  Senha
+                  <div className="password-field">
+                    <input
+                      type={show ? 'text' : 'password'}
+                      autoComplete={mode === 'login' ? 'current-password' : 'new-password'}
+                      required
+                      minLength={8}
+                      value={password}
+                      onChange={(e) => setPassword(e.target.value)}
+                      placeholder="Pelo menos 8 caracteres"
+                    />
+                    <IconButton
+                      label={show ? 'Ocultar senha' : 'Mostrar senha'}
+                      onClick={() => setShow(!show)}
+                    >
+                      {show ? <EyeOff size={20} /> : <Eye size={20} />}
+                    </IconButton>
+                  </div>
+                </label>
+              )}
+              {mode === 'login' && (
+                <Link className="forgot-link" to="/auth?mode=forgot">
+                  Esqueci minha senha
+                </Link>
+              )}
+              {error && (
+                <p className="form-error" role="alert">
+                  {error}
+                </p>
+              )}
+              <Button type="submit" loading={busy}>
+                {mode === 'login'
+                  ? 'Entrar'
+                  : mode === 'signup'
+                    ? 'Criar minha conta'
+                    : mode === 'forgot'
+                      ? 'Enviar link de recuperação'
+                      : 'Salvar nova senha'}
+                <ArrowRight size={19} />
+              </Button>
+            </form>
+            {(mode === 'signup' || mode === 'login') && (
+              <Link
+                className="login-link"
+                to={`/auth?mode=${mode === 'login' ? 'signup' : 'login'}&next=${encodeURIComponent(safeNext(params.get('next')))}`}
+              >
+                {mode === 'login' ? 'Ainda não tem conta? Comece aqui' : 'Já tem uma conta? Entrar'}
+              </Link>
+            )}
+          </>
+        )}
+      </div>
+    </main>
+  )
 }
-export function Onboarding(){
-  const [params,setParams]=useSearchParams();const guest=params.get('guest')==='true';const [step,setStep]=useState(Number(params.get('step'))||0);const {user,profile,refreshProfile,notify,requestLocation}=useApp();const navigate=useNavigate();const [username,setUsername]=useState(''),[birthday,setBirthday]=useState(''),[busy,setBusy]=useState(false),[error,setError]=useState('')
-  useEffect(()=>{if(profile&&!username)setUsername(profile.username)},[profile,username])
-  function finish(){localStorage.setItem('tasty-onboarded','true');navigate('/?guide=true',{replace:true})}
-  function next(){setError('');if(step>=3||(guest&&step===0)){finish();return}const n=step+1;setStep(n);setParams({step:String(n),...(guest?{guest:'true'}:{})})}
-  async function proceed(){setBusy(true);setError('');try{
-    if(step===1){if(user){if(!/^[a-z0-9_.]{3,24}$/.test(username))throw new Error('Use de 3 a 24 letras minúsculas, números, pontos ou sublinhados.');const {error}=await supabase.from('profiles').update({username}).eq('id',user.id);if(error)throw error;if(birthday){if(new Date(birthday)>new Date())throw new Error('Escolha uma data de nascimento válida.');const {error:e}=await supabase.from('account_settings').upsert({user_id:user.id,birthday});if(e)throw e}await refreshProfile()}}
-    if(step===2)await requestLocation()
-    if(step===3){if('Notification' in window){const permission=await Notification.requestPermission();if(user){const {error}=await supabase.from('account_settings').upsert({user_id:user.id,notifications_enabled:permission==='granted'});if(error)throw error}notify(permission==='granted'?'Notificações permitidas. Acompanhe as novidades no Tasty.':'Você pode acompanhar tudo na aba de notificações.')}else notify('Acompanhe as novidades pela aba de notificações.')}
-    next()
-  }catch(e){setError(errorMessage(e))}finally{setBusy(false)}}
-  return <main className={`onboarding step-${step}`}><div className="onboarding-top"><Logo/><button onClick={finish}>Pular</button></div>{step===0?<><div className="intro-visual"><Logo/><TastyStar className="intro-star"/></div><div className="onboarding-copy"><h1>SUA MESA<br/>ESTÁ PRONTA.</h1><div className="intro-tags"><span>RESTAURANTES</span><span>AMIGOS</span><span>PRATOS FAVORITOS</span></div></div></>:step===1?<div className="username-step"><span className="username-icon"><AtSign/></span><h1>ESCOLHA SEU<br/>NOME DE USUÁRIO</h1><p>É assim que outros vão te encontrar.</p><label className="username-input"><input aria-label="Nome de usuário" value={username} onChange={e=>setUsername(e.target.value.toLowerCase().replace(/\s/g,''))} placeholder="seu.nome" maxLength={24}/>{/^[a-z0-9_.]{3,24}$/.test(username)&&<Check/>}</label><label className="birthday-input"><CalendarDays size={20}/><span>Data de nascimento <small>(opcional)</small></span><input aria-label="Data de nascimento" type="date" max={new Date().toISOString().slice(0,10)} value={birthday} onChange={e=>setBirthday(e.target.value)}/></label></div>:<><div className="permission-visual">{step===2?<div className="permission-preview"><span className="mini-map"><MapPin fill="currentColor"/></span><div><h3>Seu próximo favorito</h3><span><MapPin size={13}/>PERTINHO DE VOCÊ</span></div></div>:<div className="permission-preview"><Avatar profile={{full_name:'Tasty'}} size={48}/><div><h3>Sua mesa ficou mais interessante!</h3><span>Tem gente nova para descobrir com você.</span></div><Bell/></div>}</div><div className="onboarding-copy"><h1>{step===2?'AQUI.':'AGORA.'}</h1><p>{step===2?'Encontre os melhores pratos e avalie onde você está agora.':'Não perca nada do que rola no feed dos seus amigos.'}</p><ul className="permission-features">{(step===2?[{icon:MapPin,label:'Perto de você'},{icon:Zap,label:'Check-in instantâneo'},{icon:Map,label:'Mapa personalizado'}]:[{icon:Bell,label:'Novas conexões'},{icon:TastyStar,label:'Reviews quentes'},{icon:MessageCircle,label:'Conversas à mesa'}]).map(({icon:Icon,label})=><li key={label}><span><Icon/></span>{label}</li>)}</ul></div></>}
-    <div className="onboarding-footer">{error&&<p className="form-error" role="alert">{error}</p>}<Button className={step===0?'black':''} loading={busy} onClick={()=>void proceed()}>{['Bora comer','Continuar','Ativar localização','Ativar notificações!'][step]}{step===0&&<ArrowRight/>}</Button>{step>0&&<div className="pagination-dots">{[0,1,2,3].map(n=><span key={n} className={n===step?'active':''}/>)}</div>}</div>
-  </main>
+export function Onboarding() {
+  const [params, setParams] = useSearchParams()
+  const guest = params.get('guest') === 'true'
+  const [step, setStep] = useState(Number(params.get('step')) || 0)
+  const { user, profile, refreshProfile, notify, requestLocation } = useApp()
+  const navigate = useNavigate()
+  const [username, setUsername] = useState(''),
+    [birthday, setBirthday] = useState(''),
+    [busy, setBusy] = useState(false),
+    [error, setError] = useState('')
+  useEffect(() => {
+    if (profile && !username) setUsername(profile.username)
+  }, [profile, username])
+  function finish() {
+    localStorage.setItem('tasty-onboarded', 'true')
+    navigate('/?guide=true', { replace: true })
+  }
+  function next() {
+    setError('')
+    if (step >= 3 || (guest && step === 0)) {
+      finish()
+      return
+    }
+    const n = step + 1
+    setStep(n)
+    setParams({ step: String(n), ...(guest ? { guest: 'true' } : {}) })
+  }
+  async function proceed() {
+    setBusy(true)
+    setError('')
+    try {
+      if (step === 1) {
+        if (user) {
+          if (!/^[a-z0-9_.]{3,24}$/.test(username))
+            throw new Error('Use de 3 a 24 letras minúsculas, números, pontos ou sublinhados.')
+          const { error } = await supabase.from('profiles').update({ username }).eq('id', user.id)
+          if (error) throw error
+          if (birthday) {
+            if (new Date(birthday) > new Date())
+              throw new Error('Escolha uma data de nascimento válida.')
+            const { error: e } = await supabase
+              .from('account_settings')
+              .upsert({ user_id: user.id, birthday })
+            if (e) throw e
+          }
+          await refreshProfile()
+        }
+      }
+      if (step === 2) await requestLocation()
+      if (step === 3) {
+        if ('Notification' in window) {
+          const permission = await Notification.requestPermission()
+          if (user) {
+            const { error } = await supabase
+              .from('account_settings')
+              .upsert({ user_id: user.id, notifications_enabled: permission === 'granted' })
+            if (error) throw error
+          }
+          notify(
+            permission === 'granted'
+              ? 'Notificações permitidas. Acompanhe as novidades no Tasty.'
+              : 'Você pode acompanhar tudo na aba de notificações.',
+          )
+        } else notify('Acompanhe as novidades pela aba de notificações.')
+      }
+      next()
+    } catch (e) {
+      setError(errorMessage(e))
+    } finally {
+      setBusy(false)
+    }
+  }
+  return (
+    <main className={`onboarding step-${step}`}>
+      <div className="onboarding-top">
+        <Logo />
+        <button onClick={finish}>Pular</button>
+      </div>
+      {step === 0 ? (
+        <>
+          <div className="intro-visual">
+            <Logo />
+            <TastyStar className="intro-star" />
+          </div>
+          <div className="onboarding-copy">
+            <h1>
+              SUA MESA
+              <br />
+              ESTÁ PRONTA.
+            </h1>
+            <div className="intro-tags">
+              <span>RESTAURANTES</span>
+              <span>AMIGOS</span>
+              <span>PRATOS FAVORITOS</span>
+            </div>
+          </div>
+        </>
+      ) : step === 1 ? (
+        <div className="username-step">
+          <span className="username-icon">
+            <AtSign />
+          </span>
+          <h1>
+            ESCOLHA SEU
+            <br />
+            NOME DE USUÁRIO
+          </h1>
+          <p>É assim que outros vão te encontrar.</p>
+          <label className="username-input">
+            <input
+              aria-label="Nome de usuário"
+              value={username}
+              onChange={(e) => setUsername(e.target.value.toLowerCase().replace(/\s/g, ''))}
+              placeholder="seu.nome"
+              maxLength={24}
+            />
+            {/^[a-z0-9_.]{3,24}$/.test(username) && <Check />}
+          </label>
+          <label className="birthday-input">
+            <CalendarDays size={20} />
+            <span>
+              Data de nascimento <small>(opcional)</small>
+            </span>
+            <input
+              aria-label="Data de nascimento"
+              type="date"
+              max={new Date().toISOString().slice(0, 10)}
+              value={birthday}
+              onChange={(e) => setBirthday(e.target.value)}
+            />
+          </label>
+        </div>
+      ) : (
+        <>
+          <div className="permission-visual">
+            {step === 2 ? (
+              <div className="permission-preview">
+                <span className="mini-map">
+                  <MapPin fill="currentColor" />
+                </span>
+                <div>
+                  <h3>Seu próximo favorito</h3>
+                  <span>
+                    <MapPin size={13} />
+                    PERTINHO DE VOCÊ
+                  </span>
+                </div>
+              </div>
+            ) : (
+              <div className="permission-preview">
+                <Avatar profile={{ full_name: 'Tasty' }} size={48} />
+                <div>
+                  <h3>Sua mesa ficou mais interessante!</h3>
+                  <span>Tem gente nova para descobrir com você.</span>
+                </div>
+                <Bell />
+              </div>
+            )}
+          </div>
+          <div className="onboarding-copy">
+            <h1>{step === 2 ? 'AQUI.' : 'AGORA.'}</h1>
+            <p>
+              {step === 2
+                ? 'Encontre os melhores pratos e avalie onde você está agora.'
+                : 'Não perca nada do que rola no feed dos seus amigos.'}
+            </p>
+            <ul className="permission-features">
+              {(step === 2
+                ? [
+                    { icon: MapPin, label: 'Perto de você' },
+                    { icon: Zap, label: 'Check-in instantâneo' },
+                    { icon: Map, label: 'Mapa personalizado' },
+                  ]
+                : [
+                    { icon: Bell, label: 'Novas conexões' },
+                    { icon: TastyStar, label: 'Reviews quentes' },
+                    { icon: MessageCircle, label: 'Conversas à mesa' },
+                  ]
+              ).map(({ icon: Icon, label }) => (
+                <li key={label}>
+                  <span>
+                    <Icon />
+                  </span>
+                  {label}
+                </li>
+              ))}
+            </ul>
+          </div>
+        </>
+      )}
+      <div className="onboarding-footer">
+        {error && (
+          <p className="form-error" role="alert">
+            {error}
+          </p>
+        )}
+        <Button className={step === 0 ? 'black' : ''} loading={busy} onClick={() => void proceed()}>
+          {['Bora comer', 'Continuar', 'Ativar localização', 'Ativar notificações!'][step]}
+          {step === 0 && <ArrowRight />}
+        </Button>
+        {step > 0 && (
+          <div className="pagination-dots">
+            {[0, 1, 2, 3].map((n) => (
+              <span key={n} className={n === step ? 'active' : ''} />
+            ))}
+          </div>
+        )}
+      </div>
+    </main>
+  )
 }

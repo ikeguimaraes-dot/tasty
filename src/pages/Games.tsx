@@ -1,41 +1,624 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { Link, useNavigate, useParams, useSearchParams } from 'react-router-dom'
-import { Heart, RefreshCw, ChevronRight, ArrowLeft, Plus, Minus, Copy, UsersRound, X, Check, ArrowUpRight } from 'lucide-react'
+import {
+  Heart,
+  RefreshCw,
+  ChevronRight,
+  ArrowLeft,
+  Plus,
+  Minus,
+  Copy,
+  UsersRound,
+  X,
+  Check,
+  ArrowUpRight,
+} from 'lucide-react'
 import { useApp, useRequireAuth } from '../lib/context'
 import { supabase } from '../lib/supabase'
 import { errorMessage } from '../lib/utils'
 import type { Dish, GameRoom, GameMember, GameVote } from '../lib/types'
 import { Logo, TastyStar, Avatar, Button, IconButton, Loading, EmptyState } from '../components/ui'
 
-export function Games(){return <div className="games-page"><div className="games-kicker">QUEM ESCOLHE O JANTAR HOJE?</div><div className="games-logo"><Logo/><span>GAMES</span><TastyStar/></div><p className="games-intro">A parte difícil é escolher.<br/>A gente deixa essa parte mais divertida.</p><div className="game-options"><Link to="/games/match"><span className="game-option-icon"><Heart/></span><div><h2>Match Maker</h2><p>Deslize e encontre seu prato perfeito</p><span>1–2 JOGADORES</span></div><ChevronRight/></Link><Link to="/games/roulette"><span className="game-option-icon"><RefreshCw/></span><div><h2>Roleta</h2><p>Deixe a sorte escolher a próxima garfada</p><span>2–20 JOGADORES</span></div><ChevronRight/></Link></div><span className="games-footer-note">A DIVERSÃO COMEÇA ANTES DA PRIMEIRA GARFADA.</span></div>}
-export function GameSetup(){
-  const {kind}=useParams();const isMatch=kind==='match';const [params]=useSearchParams();const {notify,user}=useApp();const requireAuth=useRequireAuth();const navigate=useNavigate();const [tab,setTab]=useState(params.has('code')?'join':'create'),[capacity,setCapacity]=useState(isMatch?2:20),[code,setCode]=useState(params.get('code')||''),[busy,setBusy]=useState(false),[solo,setSolo]=useState(false),[error,setError]=useState('')
-  if(solo)return isMatch?<MatchSolo onBack={()=>setSolo(false)}/>:<SoloRoulette onBack={()=>setSolo(false)}/>
-  async function submit(e:React.FormEvent){e.preventDefault();if(!requireAuth())return;setBusy(true);setError('');try{
-    const {data,error}=tab==='create'?await supabase.rpc('create_game',{kind:isMatch?'match':'roulette',capacity:isMatch?2:capacity}):await supabase.rpc('join_game',{room_code:code})
-    if(error)throw error
-    const {data:room,error:roomError}=await supabase.from('game_rooms').select('kind').eq('id',data).single();if(roomError)throw roomError
-    navigate(`/games/${room.kind}/room/${data}`)
-  }catch(e){setError(errorMessage(e))}finally{setBusy(false)}}
-  return <div className="game-setup"><GameHeader title={isMatch?'MATCH MAKER':'ROLETA'} to="/games"/><div className="game-setup-content"><span className="game-setup-eyebrow">{isMatch?'DOIS GOSTOS. UMA BOA ESCOLHA.':'SORTE NO JOGO, SABOR NO PRATO.'}</span><div className="game-mode-tabs"><button className={tab==='create'?'active':''} onClick={()=>setTab('create')}>Criar sala</button><button className={tab==='join'?'active':''} onClick={()=>setTab('join')}>Entrar na sala</button></div><form onSubmit={submit}>{tab==='create'?<><div className="capacity-row"><strong>{isMatch?'Jogadores':'Máx. jogadores'}</strong><div><IconButton label="Menos jogadores" disabled={isMatch||capacity<=2} onClick={()=>setCapacity(c=>Math.max(2,c-1))}><Minus/></IconButton><span>{capacity}</span><IconButton label="Mais jogadores" disabled={isMatch||capacity>=20} onClick={()=>setCapacity(c=>Math.min(20,c+1))}><Plus/></IconButton></div></div><p className="game-help">Crie uma sala e compartilhe o código com {isMatch?'uma pessoa':'seus amigos'}. {isMatch?'O prato que os dois curtirem será o match.':'O anfitrião gira e todo mundo vê o resultado.'}</p></>:<label className="room-code-label">Qual é o código da mesa?<input required minLength={6} maxLength={6} value={code} pattern="[A-Fa-f0-9]{6}" onChange={e=>setCode(e.target.value.toUpperCase().replace(/[^A-F0-9]/gi,''))} placeholder="ABC123" autoComplete="off"/></label>}{error&&<p className="game-error" role="alert">{error}</p>}<Button className="white" type="submit" loading={busy}>{tab==='create'?'Criar sala':'Entrar na sala'}<ArrowUpRight size={21}/></Button></form><div className="game-or"><span/>OU<span/></div><button className="solo-button" onClick={()=>setSolo(true)}>{isMatch?'Descobrir meu match sozinho':'Só quero sortear um prato'}<ChevronRight size={18}/></button>{!user&&<p className="game-help small">Para jogar com amigos, entre na sua conta. Você pode experimentar sozinho agora.</p>}</div></div>
+export function Games() {
+  return (
+    <div className="games-page">
+      <div className="games-kicker">QUEM ESCOLHE O JANTAR HOJE?</div>
+      <div className="games-logo">
+        <Logo />
+        <span>GAMES</span>
+        <TastyStar />
+      </div>
+      <p className="games-intro">
+        A parte difícil é escolher.
+        <br />A gente deixa essa parte mais divertida.
+      </p>
+      <div className="game-options">
+        <Link to="/games/match">
+          <span className="game-option-icon">
+            <Heart />
+          </span>
+          <div>
+            <h2>Match Maker</h2>
+            <p>Deslize e encontre seu prato perfeito</p>
+            <span>1–2 JOGADORES</span>
+          </div>
+          <ChevronRight />
+        </Link>
+        <Link to="/games/roulette">
+          <span className="game-option-icon">
+            <RefreshCw />
+          </span>
+          <div>
+            <h2>Roleta</h2>
+            <p>Deixe a sorte escolher a próxima garfada</p>
+            <span>2–20 JOGADORES</span>
+          </div>
+          <ChevronRight />
+        </Link>
+      </div>
+      <span className="games-footer-note">A DIVERSÃO COMEÇA ANTES DA PRIMEIRA GARFADA.</span>
+    </div>
+  )
 }
-function GameHeader({title,to,onBack}:{title:string;to?:string;onBack?:()=>void}){return <div className="game-header">{to?<Link to={to} aria-label="Voltar"><ArrowLeft/></Link>:<IconButton label="Voltar" onClick={onBack}><ArrowLeft/></IconButton>}<div><Logo/><h1>{title}</h1></div></div>}
-function RouletteWheel({spinning}:{spinning:boolean}){return <div className={`roulette-wrap ${spinning?'is-spinning':''}`}><div className="wheel-pointer"/><div className="roulette-wheel">{['🍕','🍜','☕','🍔','🍝','🍰','🍣','🍟'].map((food,i)=><span key={food} style={{transform:`rotate(${i*45}deg) translateY(-96px) rotate(${-i*45}deg)`}}>{food}</span>)}<span className="wheel-center"><TastyStar/></span></div></div>}
-function Winner({dish}:{dish:Dish}){return <Link className="game-winner" to={`/dish/${dish.id}`}><img src={dish.image_url} alt={dish.name}/><div><span>DEU BOM!</span><h2>{dish.name}</h2><p>Conhecer esse prato<ArrowUpRight size={17}/></p></div><TastyStar value={dish.rating||'✦'}/></Link>}
-function SoloRoulette({onBack}:{onBack:()=>void}){const {dishes}=useApp();const [spinning,setSpinning]=useState(false),[winner,setWinner]=useState<Dish|null>(null);const timeout=useRef<ReturnType<typeof setTimeout>|null>(null);useEffect(()=>()=>{if(timeout.current)clearTimeout(timeout.current)},[]);return <div className="game-setup"><GameHeader title="ROLETA" onBack={onBack}/><div className="game-setup-content"><h2 className="solo-heading">A próxima garfada<br/>é por conta da sorte.</h2><RouletteWheel spinning={spinning}/>{winner&&!spinning&&<Winner dish={winner}/>}<Button className="white" disabled={spinning||!dishes.length} onClick={()=>{setSpinning(true);setWinner(null);const random=new Uint32Array(1);crypto.getRandomValues(random);const result=dishes[random[0]%dishes.length];timeout.current=setTimeout(()=>{setWinner(result);setSpinning(false)},2300)}}><RefreshCw size={20} className={spinning?'spin':''}/>{spinning?'Escolhendo sua próxima descoberta…':winner?'Girar de novo':'Girar a roleta'}</Button></div></div>}
-function SwipeCard({dish,onVote,busy=false}:{dish:Dish;onVote:(liked:boolean)=>void;busy?:boolean}){const {restaurants}=useApp();const start=useRef<number|null>(null);return <div className="swipe-area"><div className="swipe-card" onPointerDown={e=>{start.current=e.clientX}} onPointerUp={e=>{if(start.current!==null&&!busy){const delta=e.clientX-start.current;if(Math.abs(delta)>65)onVote(delta>0)}start.current=null}}><img src={dish.image_url} draggable={false} alt={dish.name}/><TastyStar value={dish.rating||'✦'}/><div><span>{restaurants.find(r=>r.id===dish.restaurant_id)?.name}</span><h2>{dish.name}</h2><p>{dish.description}</p></div></div><div className="swipe-buttons"><IconButton label="Passar este prato" disabled={busy} onClick={()=>onVote(false)}><X/></IconButton><span>QUAL É A SUA VONTADE?</span><IconButton label="Quero provar este prato" disabled={busy} onClick={()=>onVote(true)}><Heart fill="currentColor"/></IconButton></div></div>}
-function MatchSolo({onBack}:{onBack:()=>void}){const {dishes}=useApp();const [index,setIndex]=useState(0),[liked,setLiked]=useState<string[]>([]);const complete=index>=dishes.length;return <div className="game-setup"><GameHeader title="MATCH MAKER" onBack={onBack}/><div className="game-setup-content">{!complete?<><p className="match-progress">{index+1} de {dishes.length} descobertas</p><SwipeCard dish={dishes[index]} onVote={yes=>{if(yes)setLiked(list=>[...list,dishes[index].id]);setIndex(i=>i+1)}}/></>:<div className="match-results"><TastyStar/><h2>{liked.length?'Deu match com seu gosto!':'Vamos experimentar de novo?'}</h2><p>{liked.length?`${liked.length} pratos para sua próxima descoberta.`:'Talvez a próxima rodada desperte sua fome.'}</p>{dishes.filter(d=>liked.includes(d.id)).map(d=><Winner key={d.id} dish={d}/>)}<Button className="white" onClick={()=>{setIndex(0);setLiked([])}}>Jogar de novo<RefreshCw size={19}/></Button></div>}</div></div>}
-export function GameRoomPage(){
-  const {roomId}=useParams();const {user,dishes,notify}=useApp();const [room,setRoom]=useState<GameRoom|null>(null),[members,setMembers]=useState<GameMember[]>([]),[votes,setVotes]=useState<GameVote[]>([]),[loading,setLoading]=useState(true),[error,setError]=useState(''),[busy,setBusy]=useState(false),[spinning,setSpinning]=useState(false);const timeout=useRef<ReturnType<typeof setTimeout>|null>(null)
-  const refresh=useCallback(async()=>{if(!roomId)return;const [r,m,v]=await Promise.all([supabase.from('game_rooms').select('*').eq('id',roomId).single(),supabase.from('game_members').select('*,profiles(*)').eq('room_id',roomId).order('joined_at'),supabase.from('game_votes').select('*').eq('room_id',roomId)]);if(r.error||m.error||v.error)setError(errorMessage(r.error||m.error||v.error));else{setRoom(r.data);setMembers(m.data as unknown as GameMember[]);setVotes(v.data as GameVote[]);setError('')}setLoading(false)},[roomId])
-  useEffect(()=>{if(!user){setLoading(false);return}let active=true;let channel:ReturnType<typeof supabase.channel>|undefined;void refresh();
-    async function connect(){const {data}=await supabase.auth.getSession();if(!active)return;await supabase.realtime.setAuth(data.session?.access_token);if(!active)return;
-      channel=supabase.channel(`game-${roomId}`).on('postgres_changes',{event:'*',schema:'public',table:'game_rooms',filter:`id=eq.${roomId}`},()=>void refresh()).on('postgres_changes',{event:'*',schema:'public',table:'game_members',filter:`room_id=eq.${roomId}`},()=>void refresh()).on('postgres_changes',{event:'*',schema:'public',table:'game_votes',filter:`room_id=eq.${roomId}`},()=>void refresh()).subscribe()
-    }void connect().catch(()=>{});const interval=setInterval(()=>void refresh(),15000);return()=>{active=false;if(channel)void supabase.removeChannel(channel);clearInterval(interval);if(timeout.current)clearTimeout(timeout.current)}},[user,refresh,roomId])
-  if(!user)return <div className="game-setup"><EmptyState title="Sua mesa está esperando" text="Entre na conta que faz parte desta sala." action="Entrar" to={`/welcome?next=${encodeURIComponent(window.location.pathname)}`}/></div>
-  if(loading)return <Loading/>
-  if(error||!room)return <div className="game-setup"><EmptyState title="Não encontramos sua sala" text="Entre usando o código compartilhado por quem criou a sala." action="Voltar aos jogos" to="/games"/></div>
-  const isMatch=room.kind==='match';const winner=dishes.find(d=>d.id===room.result_dish_id);const mine=votes.filter(v=>v.user_id===user.id);const nextDish=dishes.find(d=>!mine.some(v=>v.dish_id===d.id));const matches=members.length>=2?dishes.filter(d=>members.every(m=>votes.some(v=>v.user_id===m.user_id&&v.dish_id===d.id&&v.liked))):[]
-  async function vote(liked:boolean){if(!nextDish||busy)return;setBusy(true);const {error}=await supabase.from('game_votes').upsert({room_id:roomId,user_id:user!.id,dish_id:nextDish.id,liked},{onConflict:'room_id,user_id,dish_id'});if(error)notify(errorMessage(error),'error');else await refresh();setBusy(false)}
-  return <div className="game-setup"><GameHeader title={isMatch?'MATCH MAKER':'ROLETA'} to="/games"/><div className="game-setup-content room-content"><div className="room-code"><span>CÓDIGO DA SALA</span><button onClick={async()=>{try{await navigator.clipboard.writeText(`${window.location.origin}/games/${room.kind}?code=${room.code}`);notify('Convite copiado. Compartilhe com quem vai jogar.')}catch{notify(`Código da sala: ${room.code}`)}}}>{room.code}<Copy size={20}/></button><small>Compartilhe o código com seus amigos.</small></div><div className="room-players"><span><UsersRound size={17}/>{members.length}/{room.max_players} na mesa</span><div>{members.map(m=><span key={m.user_id} title={m.profiles.full_name}><Avatar profile={m.profiles} size={38}/><small>{m.profiles.full_name.split(' ')[0]}{m.user_id===room.host_id?' ♛':''}</small></span>)}</div></div>{isMatch?<>{matches.length>0&&<div className="match-found"><TastyStar/><h2>Vocês deram match!</h2>{matches.map(d=><Winner key={d.id} dish={d}/>)}</div>}{nextDish?<><p className="match-progress">{mine.length+1} de {dishes.length} pratos · deslize ou escolha abaixo</p><SwipeCard dish={nextDish} busy={busy} onVote={liked=>void vote(liked)}/></>:<div className="match-waiting"><Check size={40}/><h2>Você já escolheu!</h2><p>{members.length<2?'Compartilhe o código e espere a outra pessoa entrar.':votes.length<dishes.length*members.length?'Sua companhia ainda está escolhendo. Os matches aparecem aqui em tempo real.':matches.length?'Agora é só escolher qual match vocês vão provar.':'Nenhum prato em comum nesta rodada. Criem uma nova sala para tentar de novo.'}</p></div>}</>:<><RouletteWheel spinning={spinning}/>{winner&&!spinning&&<Winner dish={winner}/>}<Button className="white" disabled={room.host_id!==user.id||spinning} onClick={async()=>{setSpinning(true);const {error}=await supabase.rpc('spin_game',{room:room.id});if(error){notify(errorMessage(error),'error');setSpinning(false)}else timeout.current=setTimeout(()=>{setSpinning(false);void refresh()},2300)}}><RefreshCw size={20} className={spinning?'spin':''}/>{spinning?'A sorte está escolhendo…':room.host_id===user.id?'Girar a roleta':'Aguardando o anfitrião girar…'}</Button><p className="game-help">O resultado é o mesmo para todo mundo na sala.</p></>}</div></div>
+export function GameSetup() {
+  const { kind } = useParams()
+  const isMatch = kind === 'match'
+  const [params] = useSearchParams()
+  const { notify, user } = useApp()
+  const requireAuth = useRequireAuth()
+  const navigate = useNavigate()
+  const [tab, setTab] = useState(params.has('code') ? 'join' : 'create'),
+    [capacity, setCapacity] = useState(isMatch ? 2 : 20),
+    [code, setCode] = useState(params.get('code') || ''),
+    [busy, setBusy] = useState(false),
+    [solo, setSolo] = useState(false),
+    [error, setError] = useState('')
+  if (solo)
+    return isMatch ? (
+      <MatchSolo onBack={() => setSolo(false)} />
+    ) : (
+      <SoloRoulette onBack={() => setSolo(false)} />
+    )
+  async function submit(e: React.FormEvent) {
+    e.preventDefault()
+    if (!requireAuth()) return
+    setBusy(true)
+    setError('')
+    try {
+      const { data, error } =
+        tab === 'create'
+          ? await supabase.rpc('create_game', {
+              kind: isMatch ? 'match' : 'roulette',
+              capacity: isMatch ? 2 : capacity,
+            })
+          : await supabase.rpc('join_game', { room_code: code })
+      if (error) throw error
+      const { data: room, error: roomError } = await supabase
+        .from('game_rooms')
+        .select('kind')
+        .eq('id', data)
+        .single()
+      if (roomError) throw roomError
+      navigate(`/games/${room.kind}/room/${data}`)
+    } catch (e) {
+      setError(errorMessage(e))
+    } finally {
+      setBusy(false)
+    }
+  }
+  return (
+    <div className="game-setup">
+      <GameHeader title={isMatch ? 'MATCH MAKER' : 'ROLETA'} to="/games" />
+      <div className="game-setup-content">
+        <span className="game-setup-eyebrow">
+          {isMatch ? 'DOIS GOSTOS. UMA BOA ESCOLHA.' : 'SORTE NO JOGO, SABOR NO PRATO.'}
+        </span>
+        <div className="game-mode-tabs">
+          <button className={tab === 'create' ? 'active' : ''} onClick={() => setTab('create')}>
+            Criar sala
+          </button>
+          <button className={tab === 'join' ? 'active' : ''} onClick={() => setTab('join')}>
+            Entrar na sala
+          </button>
+        </div>
+        <form onSubmit={submit}>
+          {tab === 'create' ? (
+            <>
+              <div className="capacity-row">
+                <strong>{isMatch ? 'Jogadores' : 'Máx. jogadores'}</strong>
+                <div>
+                  <IconButton
+                    label="Menos jogadores"
+                    disabled={isMatch || capacity <= 2}
+                    onClick={() => setCapacity((c) => Math.max(2, c - 1))}
+                  >
+                    <Minus />
+                  </IconButton>
+                  <span>{capacity}</span>
+                  <IconButton
+                    label="Mais jogadores"
+                    disabled={isMatch || capacity >= 20}
+                    onClick={() => setCapacity((c) => Math.min(20, c + 1))}
+                  >
+                    <Plus />
+                  </IconButton>
+                </div>
+              </div>
+              <p className="game-help">
+                Crie uma sala e compartilhe o código com {isMatch ? 'uma pessoa' : 'seus amigos'}.{' '}
+                {isMatch
+                  ? 'O prato que os dois curtirem será o match.'
+                  : 'O anfitrião gira e todo mundo vê o resultado.'}
+              </p>
+            </>
+          ) : (
+            <label className="room-code-label">
+              Qual é o código da mesa?
+              <input
+                required
+                minLength={6}
+                maxLength={6}
+                value={code}
+                pattern="[A-Fa-f0-9]{6}"
+                onChange={(e) => setCode(e.target.value.toUpperCase().replace(/[^A-F0-9]/gi, ''))}
+                placeholder="ABC123"
+                autoComplete="off"
+              />
+            </label>
+          )}
+          {error && (
+            <p className="game-error" role="alert">
+              {error}
+            </p>
+          )}
+          <Button className="white" type="submit" loading={busy}>
+            {tab === 'create' ? 'Criar sala' : 'Entrar na sala'}
+            <ArrowUpRight size={21} />
+          </Button>
+        </form>
+        <div className="game-or">
+          <span />
+          OU
+          <span />
+        </div>
+        <button className="solo-button" onClick={() => setSolo(true)}>
+          {isMatch ? 'Descobrir meu match sozinho' : 'Só quero sortear um prato'}
+          <ChevronRight size={18} />
+        </button>
+        {!user && (
+          <p className="game-help small">
+            Para jogar com amigos, entre na sua conta. Você pode experimentar sozinho agora.
+          </p>
+        )}
+      </div>
+    </div>
+  )
+}
+function GameHeader({ title, to, onBack }: { title: string; to?: string; onBack?: () => void }) {
+  return (
+    <div className="game-header">
+      {to ? (
+        <Link to={to} aria-label="Voltar">
+          <ArrowLeft />
+        </Link>
+      ) : (
+        <IconButton label="Voltar" onClick={onBack}>
+          <ArrowLeft />
+        </IconButton>
+      )}
+      <div>
+        <Logo />
+        <h1>{title}</h1>
+      </div>
+    </div>
+  )
+}
+function RouletteWheel({ spinning }: { spinning: boolean }) {
+  return (
+    <div className={`roulette-wrap ${spinning ? 'is-spinning' : ''}`}>
+      <div className="wheel-pointer" />
+      <div className="roulette-wheel">
+        {['🍕', '🍜', '☕', '🍔', '🍝', '🍰', '🍣', '🍟'].map((food, i) => (
+          <span
+            key={food}
+            style={{ transform: `rotate(${i * 45}deg) translateY(-96px) rotate(${-i * 45}deg)` }}
+          >
+            {food}
+          </span>
+        ))}
+        <span className="wheel-center">
+          <TastyStar />
+        </span>
+      </div>
+    </div>
+  )
+}
+function Winner({ dish }: { dish: Dish }) {
+  return (
+    <Link className="game-winner" to={`/dish/${dish.id}`}>
+      <img src={dish.image_url} alt={dish.name} />
+      <div>
+        <span>DEU BOM!</span>
+        <h2>{dish.name}</h2>
+        <p>
+          Conhecer esse prato
+          <ArrowUpRight size={17} />
+        </p>
+      </div>
+      <TastyStar value={dish.rating || '✦'} />
+    </Link>
+  )
+}
+function SoloRoulette({ onBack }: { onBack: () => void }) {
+  const { dishes } = useApp()
+  const [spinning, setSpinning] = useState(false),
+    [winner, setWinner] = useState<Dish | null>(null)
+  const timeout = useRef<ReturnType<typeof setTimeout> | null>(null)
+  useEffect(
+    () => () => {
+      if (timeout.current) clearTimeout(timeout.current)
+    },
+    [],
+  )
+  return (
+    <div className="game-setup">
+      <GameHeader title="ROLETA" onBack={onBack} />
+      <div className="game-setup-content">
+        <h2 className="solo-heading">
+          A próxima garfada
+          <br />é por conta da sorte.
+        </h2>
+        <RouletteWheel spinning={spinning} />
+        {winner && !spinning && <Winner dish={winner} />}
+        <Button
+          className="white"
+          disabled={spinning || !dishes.length}
+          onClick={() => {
+            setSpinning(true)
+            setWinner(null)
+            const random = new Uint32Array(1)
+            crypto.getRandomValues(random)
+            const result = dishes[random[0] % dishes.length]
+            timeout.current = setTimeout(() => {
+              setWinner(result)
+              setSpinning(false)
+            }, 2300)
+          }}
+        >
+          <RefreshCw size={20} className={spinning ? 'spin' : ''} />
+          {spinning
+            ? 'Escolhendo sua próxima descoberta…'
+            : winner
+              ? 'Girar de novo'
+              : 'Girar a roleta'}
+        </Button>
+      </div>
+    </div>
+  )
+}
+function SwipeCard({
+  dish,
+  onVote,
+  busy = false,
+}: {
+  dish: Dish
+  onVote: (liked: boolean) => void
+  busy?: boolean
+}) {
+  const { restaurants } = useApp()
+  const start = useRef<number | null>(null)
+  return (
+    <div className="swipe-area">
+      <div
+        className="swipe-card"
+        onPointerDown={(e) => {
+          start.current = e.clientX
+        }}
+        onPointerUp={(e) => {
+          if (start.current !== null && !busy) {
+            const delta = e.clientX - start.current
+            if (Math.abs(delta) > 65) onVote(delta > 0)
+          }
+          start.current = null
+        }}
+      >
+        <img src={dish.image_url} draggable={false} alt={dish.name} />
+        <TastyStar value={dish.rating || '✦'} />
+        <div>
+          <span>{restaurants.find((r) => r.id === dish.restaurant_id)?.name}</span>
+          <h2>{dish.name}</h2>
+          <p>{dish.description}</p>
+        </div>
+      </div>
+      <div className="swipe-buttons">
+        <IconButton label="Passar este prato" disabled={busy} onClick={() => onVote(false)}>
+          <X />
+        </IconButton>
+        <span>QUAL É A SUA VONTADE?</span>
+        <IconButton label="Quero provar este prato" disabled={busy} onClick={() => onVote(true)}>
+          <Heart fill="currentColor" />
+        </IconButton>
+      </div>
+    </div>
+  )
+}
+function MatchSolo({ onBack }: { onBack: () => void }) {
+  const { dishes } = useApp()
+  const [index, setIndex] = useState(0),
+    [liked, setLiked] = useState<string[]>([])
+  const complete = index >= dishes.length
+  return (
+    <div className="game-setup">
+      <GameHeader title="MATCH MAKER" onBack={onBack} />
+      <div className="game-setup-content">
+        {!complete ? (
+          <>
+            <p className="match-progress">
+              {index + 1} de {dishes.length} descobertas
+            </p>
+            <SwipeCard
+              dish={dishes[index]}
+              onVote={(yes) => {
+                if (yes) setLiked((list) => [...list, dishes[index].id])
+                setIndex((i) => i + 1)
+              }}
+            />
+          </>
+        ) : (
+          <div className="match-results">
+            <TastyStar />
+            <h2>{liked.length ? 'Deu match com seu gosto!' : 'Vamos experimentar de novo?'}</h2>
+            <p>
+              {liked.length
+                ? `${liked.length} pratos para sua próxima descoberta.`
+                : 'Talvez a próxima rodada desperte sua fome.'}
+            </p>
+            {dishes
+              .filter((d) => liked.includes(d.id))
+              .map((d) => (
+                <Winner key={d.id} dish={d} />
+              ))}
+            <Button
+              className="white"
+              onClick={() => {
+                setIndex(0)
+                setLiked([])
+              }}
+            >
+              Jogar de novo
+              <RefreshCw size={19} />
+            </Button>
+          </div>
+        )}
+      </div>
+    </div>
+  )
+}
+export function GameRoomPage() {
+  const { roomId } = useParams()
+  const { user, dishes, notify } = useApp()
+  const [room, setRoom] = useState<GameRoom | null>(null),
+    [members, setMembers] = useState<GameMember[]>([]),
+    [votes, setVotes] = useState<GameVote[]>([]),
+    [loading, setLoading] = useState(true),
+    [error, setError] = useState(''),
+    [busy, setBusy] = useState(false),
+    [spinning, setSpinning] = useState(false)
+  const timeout = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const refresh = useCallback(async () => {
+    if (!roomId) return
+    const [r, m, v] = await Promise.all([
+      supabase.from('game_rooms').select('*').eq('id', roomId).single(),
+      supabase
+        .from('game_members')
+        .select('*,profiles(*)')
+        .eq('room_id', roomId)
+        .order('joined_at'),
+      supabase.from('game_votes').select('*').eq('room_id', roomId),
+    ])
+    if (r.error || m.error || v.error) setError(errorMessage(r.error || m.error || v.error))
+    else {
+      setRoom(r.data)
+      setMembers(m.data as unknown as GameMember[])
+      setVotes(v.data as GameVote[])
+      setError('')
+    }
+    setLoading(false)
+  }, [roomId])
+  useEffect(() => {
+    if (!user) {
+      setLoading(false)
+      return
+    }
+    let active = true
+    let channel: ReturnType<typeof supabase.channel> | undefined
+    void refresh()
+    async function connect() {
+      const { data } = await supabase.auth.getSession()
+      if (!active) return
+      await supabase.realtime.setAuth(data.session?.access_token)
+      if (!active) return
+      channel = supabase
+        .channel(`game-${roomId}`)
+        .on(
+          'postgres_changes',
+          { event: '*', schema: 'public', table: 'game_rooms', filter: `id=eq.${roomId}` },
+          () => void refresh(),
+        )
+        .on(
+          'postgres_changes',
+          { event: '*', schema: 'public', table: 'game_members', filter: `room_id=eq.${roomId}` },
+          () => void refresh(),
+        )
+        .on(
+          'postgres_changes',
+          { event: '*', schema: 'public', table: 'game_votes', filter: `room_id=eq.${roomId}` },
+          () => void refresh(),
+        )
+        .subscribe()
+    }
+    void connect().catch(() => {})
+    const interval = setInterval(() => void refresh(), 15000)
+    return () => {
+      active = false
+      if (channel) void supabase.removeChannel(channel)
+      clearInterval(interval)
+      if (timeout.current) clearTimeout(timeout.current)
+    }
+  }, [user, refresh, roomId])
+  if (!user)
+    return (
+      <div className="game-setup">
+        <EmptyState
+          title="Sua mesa está esperando"
+          text="Entre na conta que faz parte desta sala."
+          action="Entrar"
+          to={`/welcome?next=${encodeURIComponent(window.location.pathname)}`}
+        />
+      </div>
+    )
+  if (loading) return <Loading />
+  if (error || !room)
+    return (
+      <div className="game-setup">
+        <EmptyState
+          title="Não encontramos sua sala"
+          text="Entre usando o código compartilhado por quem criou a sala."
+          action="Voltar aos jogos"
+          to="/games"
+        />
+      </div>
+    )
+  const isMatch = room.kind === 'match'
+  const winner = dishes.find((d) => d.id === room.result_dish_id)
+  const mine = votes.filter((v) => v.user_id === user.id)
+  const nextDish = dishes.find((d) => !mine.some((v) => v.dish_id === d.id))
+  const matches =
+    members.length >= 2
+      ? dishes.filter((d) =>
+          members.every((m) =>
+            votes.some((v) => v.user_id === m.user_id && v.dish_id === d.id && v.liked),
+          ),
+        )
+      : []
+  async function vote(liked: boolean) {
+    if (!nextDish || busy) return
+    setBusy(true)
+    const { error } = await supabase
+      .from('game_votes')
+      .upsert(
+        { room_id: roomId, user_id: user!.id, dish_id: nextDish.id, liked },
+        { onConflict: 'room_id,user_id,dish_id' },
+      )
+    if (error) notify(errorMessage(error), 'error')
+    else await refresh()
+    setBusy(false)
+  }
+  return (
+    <div className="game-setup">
+      <GameHeader title={isMatch ? 'MATCH MAKER' : 'ROLETA'} to="/games" />
+      <div className="game-setup-content room-content">
+        <div className="room-code">
+          <span>CÓDIGO DA SALA</span>
+          <button
+            onClick={async () => {
+              try {
+                await navigator.clipboard.writeText(
+                  `${window.location.origin}/games/${room.kind}?code=${room.code}`,
+                )
+                notify('Convite copiado. Compartilhe com quem vai jogar.')
+              } catch {
+                notify(`Código da sala: ${room.code}`)
+              }
+            }}
+          >
+            {room.code}
+            <Copy size={20} />
+          </button>
+          <small>Compartilhe o código com seus amigos.</small>
+        </div>
+        <div className="room-players">
+          <span>
+            <UsersRound size={17} />
+            {members.length}/{room.max_players} na mesa
+          </span>
+          <div>
+            {members.map((m) => (
+              <span key={m.user_id} title={m.profiles.full_name}>
+                <Avatar profile={m.profiles} size={38} />
+                <small>
+                  {m.profiles.full_name.split(' ')[0]}
+                  {m.user_id === room.host_id ? ' ♛' : ''}
+                </small>
+              </span>
+            ))}
+          </div>
+        </div>
+        {isMatch ? (
+          <>
+            {matches.length > 0 && (
+              <div className="match-found">
+                <TastyStar />
+                <h2>Vocês deram match!</h2>
+                {matches.map((d) => (
+                  <Winner key={d.id} dish={d} />
+                ))}
+              </div>
+            )}
+            {nextDish ? (
+              <>
+                <p className="match-progress">
+                  {mine.length + 1} de {dishes.length} pratos · deslize ou escolha abaixo
+                </p>
+                <SwipeCard dish={nextDish} busy={busy} onVote={(liked) => void vote(liked)} />
+              </>
+            ) : (
+              <div className="match-waiting">
+                <Check size={40} />
+                <h2>Você já escolheu!</h2>
+                <p>
+                  {members.length < 2
+                    ? 'Compartilhe o código e espere a outra pessoa entrar.'
+                    : votes.length < dishes.length * members.length
+                      ? 'Sua companhia ainda está escolhendo. Os matches aparecem aqui em tempo real.'
+                      : matches.length
+                        ? 'Agora é só escolher qual match vocês vão provar.'
+                        : 'Nenhum prato em comum nesta rodada. Criem uma nova sala para tentar de novo.'}
+                </p>
+              </div>
+            )}
+          </>
+        ) : (
+          <>
+            <RouletteWheel spinning={spinning} />
+            {winner && !spinning && <Winner dish={winner} />}
+            <Button
+              className="white"
+              disabled={room.host_id !== user.id || spinning}
+              onClick={async () => {
+                setSpinning(true)
+                const { error } = await supabase.rpc('spin_game', { room: room.id })
+                if (error) {
+                  notify(errorMessage(error), 'error')
+                  setSpinning(false)
+                } else
+                  timeout.current = setTimeout(() => {
+                    setSpinning(false)
+                    void refresh()
+                  }, 2300)
+              }}
+            >
+              <RefreshCw size={20} className={spinning ? 'spin' : ''} />
+              {spinning
+                ? 'A sorte está escolhendo…'
+                : room.host_id === user.id
+                  ? 'Girar a roleta'
+                  : 'Aguardando o anfitrião girar…'}
+            </Button>
+            <p className="game-help">O resultado é o mesmo para todo mundo na sala.</p>
+          </>
+        )}
+      </div>
+    </div>
+  )
 }
