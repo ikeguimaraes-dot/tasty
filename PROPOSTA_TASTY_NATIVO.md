@@ -1,6 +1,6 @@
-# Tasty nativo — proposta para alinhamento
+# Tasty nativo — plano revisado com Supabase
 
-Data: 12 de setembro de 2026. Este documento descreve uma arquitetura proposta, ainda não implementada nem validada por teste de carga. A alteração de cores na versão web é uma entrega independente.
+Data: 12 de setembro de 2026. Revisão que incorpora a correção de custo-benefício enviada pelo usuário. A arquitetura nativa ainda não foi implementada nem validada por teste de carga. A versão web já utiliza a identidade vermelha.
 
 ## Decisões já recebidas
 
@@ -8,8 +8,11 @@ Data: 12 de setembro de 2026. Este documento descreve uma arquitetura proposta, 
 - Meta de pico aprovada pelo usuário: **10.000 cadastros e 10.000 avaliações durante o mesmo minuto**.
 - Gatilho provisório aprovado para avaliar ML: **50.000 interações válidas, 2.000 usuários ativos e 8 semanas de dados**, além de demonstrar melhoria sobre as recomendações por regras.
 - Construir o app nativo em um projeto novo. A versão web será referência de produto e modelo de dados, sem copiar sua estrutura React DOM, Vite ou CSS como base do aplicativo.
+- Backend inicial exclusivamente com os componentes do Supabase já contratado: Auth, Edge Functions, PostgreSQL, Queues, Storage e Realtime. Expo continua responsável pelo encaminhamento de push.
+- Evitar novas faturas de AWS, Redis dedicado ou servidores permanentes. Aumentos de capacidade devem ser sustentados por medições e estimativa de custo incremental.
+- O usuário autorizou executar o plano sem novas confirmações rotineiras. Essa instrução substitui o pedido de alinhamento prévio do documento anterior.
 
-Os seis pontos abaixo ainda precisam de alinhamento antes de iniciar a implementação nativa, conforme solicitado no prompt anexado.
+O [relatório de plano e custos](CUSTOS_TASTY_SUPABASE.md) registra a consulta à conta, as franquias, exemplos de excedentes e os valores ainda não verificáveis. Ter os recursos disponíveis no Pro não comprova capacidade para o pico escolhido.
 
 ## 1. Stack: comparação e recomendação
 
@@ -29,62 +32,126 @@ O produto não depende de uma interface com requisitos que justifiquem, neste mo
 
 Para a Conta Justa, proponho OCR no dispositivo: Vision no iOS e ML Kit no Android, com uma interface comum e possibilidade de um módulo nativo próprio. A correção manual dos itens permanece obrigatória no fluxo. Ver [OCR do Vision](https://developer.apple.com/documentation/vision/recognizing-text-in-images?changes=lates_7) e [ML Kit Android](https://developers.google.com/ml-kit/vision/text-recognition/v2/android).
 
-Credenciais de sessão usarão armazenamento seguro do sistema. Rascunhos, tarefas pendentes e cache local usarão SQLite. Mapas serão componentes nativos. O backend terá ambientes novos de desenvolvimento e homologação antes de qualquer migração da produção atual.
+Credenciais de sessão usarão armazenamento seguro do sistema. Rascunhos, tarefas pendentes e cache local usarão SQLite. Mapas serão componentes nativos. O desenvolvimento do backend começará com Supabase local e migrações versionadas, evitando criar um projeto remoto pago apenas para iniciar o trabalho. A homologação hospedada terá dados isolados e custo dimensionado antes dos ensaios; nenhum teste de pico será executado sobre os usuários da produção atual.
 
-## 2. Backend para muitos usuários escrevendo ao mesmo tempo
+## 2. Backend com os componentes do Supabase
 
-### Desenho proposto
+### Desenho revisado
 
 ```mermaid
 flowchart TD
   A[App nativo iOS e Android] --> B[Supabase Auth]
-  A --> C[API TypeScript / Fastify]
-  C --> R[Redis: limite por usuário e cache]
-  C --> P[Pool de conexões com limite global]
-  P --> D[PostgreSQL: dados + eventos pendentes]
-  D --> O[Despachante de eventos]
-  O --> Q[Amazon SQS: filas independentes]
-  Q --> I[Workers de imagem]
-  Q --> G[Workers de notas e notificações]
-  Q --> T[Workers de comportamento]
-  A --> U[Upload autorizado e retomável]
-  U --> S[Storage: originais privados]
-  I --> F[Imagens processadas + CDN]
+  A --> C[Supabase Edge Functions]
+  C --> D[RPC PostgreSQL: identidade, limites, avaliação e evento]
+  D --> Q[Supabase Queues: pgmq na mesma transação]
+  K[pg_cron e pg_net: disparo quando há trabalho] --> W[Consumidores em Edge Functions]
+  W --> Q
+  W --> G[Agregados, reconciliação e dados de recomendação]
+  W --> N[Expo Push / APNs / FCM]
+  A --> U[Upload autorizado e retomável ao Storage privado]
+  U --> S[Validação e transformação nativa do Storage]
+  W --> S
+  S --> F[Smart CDN e versões de imagens]
   F --> A
-  G --> N[Expo Push / APNs / FCM]
-  T --> E[Dados analíticos e recomendações]
+  A --> R[Supabase Realtime: salas autorizadas]
 ```
 
-**Escrita curta e durável.** A publicação gravará a avaliação e um evento pendente na mesma transação, com chave de idempotência por usuário. A resposta de sucesso significará que o registro foi confirmado no banco. Repetir uma requisição após perda de conexão não criará outra avaliação. Processamento de fotos, agregação de notas e envio de push ocorrerão depois.
+| Componente anterior                     | Escolha inicial revisada                                                       |
+| --------------------------------------- | ------------------------------------------------------------------------------ |
+| Fastify em ECS/Fargate                  | Edge Functions para endpoints e orquestração                                   |
+| SQS e workers permanentes               | Queues/pgmq e consumidores em Edge Functions, acionados por agendamento        |
+| Redis para limites                      | Tabela e função atômica no PostgreSQL                                          |
+| Redis para cache                        | Cache local, agregados/candidatos no Postgres e CDN para mídia                 |
+| Workers pesados de imagem e CDN própria | Preparação no aparelho, transformação nativa do Storage e Smart CDN            |
+| Pooling mantido pela aplicação          | Pool do PostgREST para RPC/REST; Supavisor para eventual SQL direto no backend |
 
-**Fila fora do banco principal.** Para a meta escolhida, proponho Amazon SQS Standard e workers em contêineres, inicialmente em ECS/Fargate na região mais próxima do banco. Um despachante publica os eventos pendentes do PostgreSQL e registra a confirmação. Se cair entre as duas ações, poderá reenviar: todos os consumidores precisarão de deduplicação e idempotência. Mensagens com falhas repetidas irão para filas de erro, com retentativas e alertas. SQS pode entregar mensagens repetidas ou fora de ordem, por isso não haverá promessa de processamento exatamente uma vez. [Semântica do SQS Standard](https://docs.aws.amazon.com/AWSSimpleQueueService/latest/SQSDeveloperGuide/standard-queues.html).
+### Escrita, limites e consistência
 
-**Pooling.** API e workers usarão o pool transacional do Supabase, com conexões pequenas por instância e um teto global para impedir que o aumento de workers esgote o banco. Dimensionaremos também as conexões usadas por Auth, Storage e demais serviços. O cliente móvel usará HTTPS, sem conexão direta ao PostgreSQL. Configurações dependentes da sessão não serão mantidas entre transações. [Conexão e pooling no Supabase](https://supabase.com/docs/guides/database/connecting-to-postgres).
+**Confirmação atômica.** A Edge Function validará o token e chamará uma única função de banco para publicar. Essa transação verificará autorização e limites, gravará a avaliação e registrará o evento durável na fila pgmq. O evento terá identificador, tipo, versão e IDs de usuário/prato/avaliação; fotos não entrarão na mensagem. Se qualquer etapa falhar, toda a transação será revertida. Sucesso HTTP só será enviado após o commit.
 
-**Autorização e rate limiting.** A API validará o token, aplicará limites por usuário e endpoint em Redis e enviará `429` com orientação de retentativa quando necessário. Como ponto de partida: 10 avaliações/minuto por usuário com pequeno burst, 60 comentários/minuto e 120 ações de curtir/salvar por minuto, a ajustar após medição. A identidade será derivada do token validado, e as regras de propriedade também serão aplicadas no banco. Acesso direto às tabelas de escrita pelo cliente será fechado para impedir contornar a API. Papéis do banco terão privilégios mínimos e contexto de usuário limitado à transação. Limites e antifraude de cadastro serão tratados separadamente dos usuários autenticados.
+Uma restrição única por usuário/operação/chave de idempotência, junto ao hash do conteúdo, impedirá duplicações inclusive em requisições concorrentes. Retry com a mesma chave e conteúdo retornará o mesmo resultado sem consumir novamente o limite. Reutilizar a chave com conteúdo diferente retornará conflito. A mesma disciplina será aplicada a edições, exclusões e ações sociais pertinentes.
 
-**Cadastros.** Criar conta, enviar confirmação e confirmar o endereço são etapas diferentes. Usaremos Supabase Auth com SMTP de produção, limites negociados e monitoramento do provedor de e-mail. Apenas provisionamento mínimo de perfil ficará no caminho crítico; notificações e recomendações iniciais serão assíncronas. Pooling não elimina limites do serviço de autenticação nem de e-mail. [Limites de autenticação](https://supabase.com/docs/guides/auth/rate-limits).
+Como a fila está no mesmo PostgreSQL, a avaliação e `pgmq.send` podem compartilhar a transação. Não será necessário um segundo despachante apenas para copiar cada evento para outra fila externa. Uma trilha de eventos permitirá auditoria e reconciliação, com retenção limitada. Será usada fila persistente com WAL, nunca a opção não durável para eventos críticos. [Filas e API pgmq](https://supabase.com/docs/guides/queues/pgmq).
 
-**Fotos.** Upload direto ao storage por autorização temporária, compressão no aparelho e retomada após falhas. Os workers validarão os arquivos, removerão metadados desnecessários e produzirão tamanhos apropriados ao feed. Os originais permanecerão privados; imagens destinadas à publicação serão servidas pela CDN com caminhos versionados e política de invalidação. Proponho Supabase Storage com Smart CDN em plano compatível, sujeito a validar custos e quotas; a documentação descreve sua disponibilidade e cache. [Smart CDN](https://supabase.com/docs/guides/storage/cdn/smart-cdn).
+**Rate limiting no banco.** Uma tabela privada com chave composta `(user_id, endpoint, janela)` terá incremento condicional atômico dentro da função de escrita. Limites iniciais: 10 avaliações, 60 comentários e 120 ações de curtir/salvar por minuto por usuário. Janelas fixas permitem um pequeno burst na virada do minuto; o teste deve cobrir esse comportamento. Registros vencidos serão removidos em lotes com índice de expiração. Não haverá um contador global bloqueado por todos os usuários.
 
-**Notas, feed e jogos.** Agregados serão atualizados em lotes, incluindo edição/exclusão de avaliações, sem recontar todas as avaliações na requisição do usuário. Haverá reconciliação periódica. O feed usará paginação por cursor e cache de candidatos. Atualizações em tempo real serão restritas a salas e usuários interessados, com estado persistido e recuperação ao reconectar.
+A Edge Function traduzirá excesso em `429` com `Retry-After`. O controle também existirá na função de banco, para que invocar uma RPC diretamente não permita contorná-lo. A identidade virá da sessão validada; o cliente não escolherá outro `user_id`. Escritas diretas nas tabelas serão fechadas, com RLS, concessões mínimas e funções privilegiadas de escopo restrito. Segredos administrativos ficarão apenas no ambiente do servidor. Limites de autenticação e proteção de endpoints anônimos continuam separados desses limites por usuário.
 
-### Meta e teste de carga
+**Pooling sem serviço novo.** Chamadas REST/RPC com `supabase-js` passam pelo PostgREST e seu pool. Elas não passam automaticamente pelo Supavisor. Se alguma Edge Function precisar executar SQL direto, usará o Supavisor em modo transacional, com uma conexão por instância aquecida como ponto de partida, TLS e prepared statements desativados quando exigido pelo modo escolhido. O aplicativo móvel só usará HTTPS. A concorrência dos consumidores será limitada considerando as conexões de Auth, Storage e PostgREST; um pool não elimina limites de CPU e I/O. [Conexões do Supabase](https://supabase.com/docs/guides/database/connecting-to-postgres).
 
-10.000 cadastros/minuto equivalem a cerca de 167 cadastros/s; 10.000 avaliações/minuto a outros 167 salvamentos/s. São aproximadamente **334 operações de negócio/s**, antes de uploads, leituras, confirmação, curtidas e tracking. Não se deve interpretar esse total como apenas 334 consultas SQL/s.
+### Consumidores, recuperação e custo ocioso
 
-Premissa inicial para o teste de mídia: uma foto comprimida de 2 MB por avaliação. Isso representa aproximadamente **20 GB recebidos em um minuto**, sem contar leituras pela CDN. É um envelope de teste, não uma medição do uso real. A capacidade e o custo serão calculados por tamanho das fotos, duração e frequência dos picos.
+pgmq oferece leitura com tempo de invisibilidade, reentrega e operações de confirmação/arquivamento. A política de fila de erro será implementada pela aplicação: após um limite inicial de cinco tentativas, mover a mensagem para uma fila de falhas na mesma transação que a remove da fila ativa. Registrar causa, alertar e permitir reprocessamento. Não presumir que criar uma fila pgmq configura automaticamente dead-letter e retries adequados ao negócio.
 
-Testes em homologação, com contas e destinatários controlados:
+Consumidores terão processamento idempotente por `(consumidor, evento)`. Quando o efeito for inteiramente no banco, gravar a deduplicação, aplicar o efeito e confirmar a mensagem na mesma transação. Em uma chamada externa de push, uma queda após o envio pode deixar o resultado incerto; registrar tickets/receipts e deduplicar ao máximo, sem prometer entrega externa exatamente uma vez. Reenvios e eventos fora de ordem não podem duplicar contagens ou desfazer uma versão mais recente.
 
-1. Cadastros pela API pública real, distribuídos entre origens, sem substituir o fluxo por criação administrativa de usuários. Medir criação, fila/envio do e-mail e confirmação separadamente.
-2. Publicações por usuários já autenticados: 10.000 em 60 segundos, com uploads e leituras concorrentes. Adicionar cenário em que contas recém-confirmadas publicam.
-3. Distribuição normal e concentração de avaliações em poucos pratos populares, para revelar contenção de linhas e índices.
-4. Pico de um minuto, carga sustentada de 15 minutos e falhas de workers/Redis/rede. O ensaio sustentado é uma verificação adicional, não uma suposição sobre tráfego diário.
-5. Metas propostas: p95 de salvamento de metadados até 1,5 s, p99 até 3 s, erros inesperados abaixo de 1%, nenhum registro confirmado perdido e nenhum duplicado por retry. Upload e entrega de e-mail terão métricas próprias.
-6. Meta proposta para drenagem das filas: até 5 minutos após o pico, sem crescimento ilimitado; observar CPU, I/O, locks, conexões, idade dos eventos e custo por mil operações.
+Filas pgmq não despertam funções por conta própria. O agendamento usará `pg_cron` e `pg_net`, com credenciais no Vault e endpoints de consumo autenticados. O cron verificará se há mensagens elegíveis e vagas de processamento antes de chamar uma Edge Function. Sem trabalho, não haverá invocações Edge de polling contínuo. Começar com verificação por minuto e medir seu impacto no atraso total; agendamento, espera e retries entram na meta de drenagem. [Consumo por Edge Functions](https://supabase.com/docs/guides/queues/consuming-messages-with-edge-functions) e [agendamento nativo](https://supabase.com/docs/guides/functions/schedule-functions).
 
-Esses critérios ainda precisam de aprovação. A arquitetura só será considerada apta ao pico após os testes com quotas e infraestrutura reais; não existe evidência de que o projeto web atual suporte essa carga. Contratação de infraestrutura e testes que gerem custos serão apresentados com escopo e orçamento antes da execução.
+Cada consumidor começará com lotes de 25–50 mensagens e número limitado de lotes por execução. Leases no banco limitarão a concorrência; expiração permitirá recuperação de instâncias interrompidas. Timeout de visibilidade, tamanho do lote e paralelismo serão ajustados pela medição. Evitar uma chamada HTTP por evento e cadeias recursivas de funções. Não segurar transações SQL abertas enquanto espera upload, e-mail ou push.
+
+Filas, limites, avaliações e agregados compartilham o mesmo banco. Essa escolha elimina serviços separados, mas não o custo de processamento. Monitorar idade da fila, retries, falhas, CPU, disco, I/O, locks e conexões. Arquivos de mensagens processadas e eventos brutos terão retenção e limpeza em lotes para controlar crescimento e manutenção do PostgreSQL.
+
+### Fotos e limites das Edge Functions
+
+Upload continuará direto ao Storage, autorizado e retomável. O aparelho comprimirá a imagem e removerá metadados desnecessários antes de enviar; isso melhora o uso normal, mas o servidor não confiará apenas no cliente. Originais entrarão em área privada, com limites de tamanho/tipo e vínculo ao proprietário. A validação verificará conteúdo compatível com a extensão, dimensões, integridade e destino permitido, mantendo arquivos rejeitados fora da publicação.
+
+**Correção da proposta recebida:** Edge Functions não serão workers de processamento pesado de fotos. O limite documentado é **2 segundos de CPU por requisição**, 256 MB de memória e, no plano pago, até 400 segundos de duração total. Espera de rede não equivale a CPU disponível; bibliotecas multithread como `sharp/libvips` não são suportadas nesse ambiente. Por isso a função coordenará validações limitadas, estados e pedidos ao serviço nativo de transformação. [Limites das Edge Functions](https://supabase.com/docs/guides/functions/limits).
+
+Redimensionamento, qualidade e formato serão tratados pela transformação nativa do Storage. URLs e caminhos versionados serão reutilizados pelo Smart CDN, com poucos tamanhos de feed. A prova de viabilidade deve testar orientação, EXIF/localização, arquivos malformados e limites reais: a documentação de transformação não será interpretada como garantia universal de sanitização. Só a imagem validada poderá ser publicada, e o original permanecerá privado. Se a sanitização necessária não couber nas capacidades comprovadas, registrar essa lacuna antes de liberar fotos; não inserir processamento pesado incompatível na Edge Function. [Transformação de imagens](https://supabase.com/docs/guides/storage/serving/image-transformations) e [Smart CDN](https://supabase.com/docs/guides/storage/cdn/smart-cdn).
+
+A avaliação confirmada poderá apresentar a foto como em processamento, com retomada e indicação de falha. O tempo até a foto ficar disponível será medido separadamente do salvamento de metadados. Transformações nativas têm franquia e excedentes por imagem de origem; não são ilimitadas no Pro.
+
+### Notas, feed, jogos e cadastros
+
+Notas serão agregadas em lotes, incluindo edição/exclusão, sem recontagem integral na requisição de publicação. Deduplicação e controle de versão impedirão aplicar deltas duas vezes. Reconciliar periodicamente com as avaliações persistidas. O teste concentrará escritas em pratos populares para detectar linhas de agregado muito disputadas.
+
+O feed terá paginação por cursor, candidatos pré-calculados no Postgres e cache local SQLite. Tracking seguirá em lotes para sua própria fila pgmq e dados particionados no Supabase. Redis e plataforma analítica externa não farão parte da base inicial. Realtime ficará restrito a salas e usuários interessados, com autorização e recuperação do estado ao reconectar. Milhares de requisições HTTP não exigem milhares de sockets Realtime.
+
+Cadastros continuarão pelo Supabase Auth, com SMTP de produção e quota suficiente no provedor de e-mail. Criar conta, enviar confirmação e confirmar endereço são etapas distintas. Somente perfil mínimo ficará no caminho crítico; notificações e recomendações iniciais serão assíncronas. O serviço padrão de e-mail atual não é uma configuração de lançamento para 10 mil cadastros/minuto. Pooling e troca de fila não removem limites de Auth ou SMTP. [Limites de autenticação](https://supabase.com/docs/guides/auth/rate-limits).
+
+### Meta, latência e teste de carga
+
+A meta permanece **10.000 cadastros e 10.000 avaliações no mesmo minuto**: cerca de 167 cadastros/s e 167 salvamentos/s, ou aproximadamente 334 operações de negócio/s antes de uploads, leituras, confirmação, curtidas e tracking. Isso não significa apenas 334 consultas SQL/s.
+
+Os critérios permanecem:
+
+| Critério                | Aceite                                                                                                |
+| ----------------------- | ----------------------------------------------------------------------------------------------------- |
+| Salvamento de metadados | p95 até 1,5 s e p99 até 3 s, medidos pelo cliente de teste até a confirmação durável                  |
+| Erros inesperados       | Menos de 1% das operações válidas                                                                     |
+| Integridade             | Nenhum registro confirmado perdido e nenhum duplicado por retry                                       |
+| Filas                   | Drenagem até 5 minutos após o pico, sem crescimento ilimitado                                         |
+| Mídia e e-mail          | Métricas próprias de upload, foto pronta, envio e confirmação; não esconder esses tempos no resultado |
+
+**Reavaliação antes do teste pago:** p95/p99 são objetivos plausíveis para uma escrita pequena e uma única RPC, mas ainda não há evidência de que sejam atingidos no compute atual, especialmente com Auth e consumidores concorrendo por recursos. Incluir partidas frias e filas de conexão na medição. Não declarar a capacidade aprovada apenas com funções já aquecidas, médias ou testes locais.
+
+Não é viável exigir processamento pesado de uma foto arbitrária dentro dos 2 segundos de CPU da Edge Function. A meta de salvamento já separa mídia do caminho crítico; o novo desenho preserva isso. Também não é viável demonstrar 10 mil cadastros/minuto com o serviço padrão de e-mail e seus limites atuais. São restrições conhecidas de configuração e fluxo, sem redução da meta de negócio.
+
+O prazo de drenagem depende do número de tarefas geradas por publicação, não apenas do número de avaliações. A 500 push/s, cinco minutos comportam no máximo 150 mil envios, antes de retries e outras esperas. O ensaio deve incluir a distribuição real de seguidores e o agrupamento da seção 3; não aprovar uma fila artificialmente pequena enquanto o produto produz fan-out ilimitado.
+
+Premissa de mídia: uma foto de 2 MB por avaliação, equivalente a **20 GB de upload em um minuto**, cerca de 333 MB/s recebidos pelo Storage. Quinze minutos nessa taxa representam 300 GB de originais. Essa carga não prova ser necessária no uso cotidiano; é o envelope de validação solicitado. Não encaminhar esses bytes pelas Edge Functions.
+
+O roteiro de homologação usará contas e destinatários controlados:
+
+1. Validar localmente migrações, autorização, transação, idempotência concorrente, limites e recuperação de filas. Medir custo por operação em ensaio hospedado pequeno antes da carga completa.
+2. Conferir compute real, quotas de Auth/SMTP/Storage/Functions/Realtime e orçamento do ensaio. Instrumentar custo e condições de interrupção antes de executá-lo. Interromper a etapa quando houver degradação ou orçamento esgotado registra falha, não aceite parcial.
+3. Subir em estágios de 1.000, 2.500, 5.000 e 10.000 operações por tipo/minuto, até atingir cadastros e avaliações simultâneos na meta. Cadastros devem usar a API pública real e origens de teste controladas, sem substituir o fluxo por criação administrativa.
+4. Publicar com usuários já autenticados e também com contas recém-confirmadas, junto a uploads e leituras. Medir criação, envio de e-mail e confirmação separadamente; registrar `429` de usuários dentro da quota como incapacidade de atender a carga, não descartá-los das estatísticas.
+5. Alternar distribuição normal e concentração em poucos pratos; testar cold starts, perda de resposta após commit, interrupção de consumidores, expiração de leases, reentrega, fila de falhas e falhas de rede.
+6. Executar o pico de um minuto e a carga sustentada de 15 minutos. Conferir contagens e hashes de operações persistidas, reconciliação dos agregados e fila vazia/estabilizada após a drenagem, sem encerrar a medição na última resposta HTTP.
+7. Registrar percentis, operações rejeitadas, idade das filas, CPU/I/O/locks/conexões e custo por mil operações. Remover os dados de teste ao terminar, preservando o relatório sem dados pessoais.
+
+Não há benchmark que permita afirmar que o Pro atual atende ao pico ou que essa combinação terá sempre menor latência/custo que infraestrutura dedicada. A decisão inicial reduz fornecedores e despesas fixas adicionais; capacidade e custo sob carga continuam sujeitos aos ensaios.
+
+### Plano contratado, custo e eventual evolução
+
+A consulta autenticada confirmou **Supabase Pro**, em uma organização com seis projetos. O Tasty tem aproximadamente 12 MB de banco, nenhuma Edge Function implantada e as extensões pgmq/pg_cron/pg_net disponíveis, ainda não habilitadas. Compute exato e consumo acumulado da organização não foram confirmados. Não será necessário mudar para Team apenas para disponibilizar os componentes escolhidos.
+
+Pro inclui 2 milhões de invocações Edge, 100 GB de Storage e 100 origens distintas transformadas por ciclo; transformar 10 mil origens gera aproximadamente US$ 50 de excedente quando toda a franquia inicial está disponível. Esses exemplos não representam saldo confirmado nem a fatura real dos seis projetos. Franquias, cenários e eventuais incrementos de compute estão no [relatório de custos](CUSTOS_TASTY_SUPABASE.md).
+
+A fase de viabilidade começará sem contratar AWS, Redis externo ou servidor novo. Antes de concluir que falta capacidade, ajustar índices, consultas, retenção, lotes e concorrência. Aumentar compute ou quota do Supabase só responde ao gargalo que for medido; trocar o plano da organização não garante throughput.
+
+Upstash só será considerado se a tabela de limites continuar causando contenção material após esses ajustes. Fila externa só será considerada se o uso compartilhado de CPU/I/O/disco do pgmq impedir a meta e a alternativa tiver custo-benefício demonstrado. A ordem de evolução seguirá o gargalo observado, preservando transações, IDs de evento, idempotência e reconciliação. Nenhuma dessas alternativas integra a contratação inicial.
 
 ## 3. Push funcional e deep links
 
@@ -121,7 +188,7 @@ No iOS, push silencioso é de baixa prioridade e tem execução curta; a Apple n
 
 O Expo BackgroundTask usa as APIs desses sistemas e herda suas restrições. Será usado para pequenas reconciliações e envio de eventos em lotes, sem manter sockets de jogos ativos continuamente. [BackgroundTask](https://docs.expo.dev/versions/latest/sdk/background-task/).
 
-**Compromisso de produto:** rascunhos e identificadores de operações ficam persistidos; o servidor confirma escritas duráveis; ao reabrir o app com conexão válida, ocorre reconciliação. Horário exato de tarefas, push silencioso e continuidade após encerramento forçado são de melhor esforço. OCR será feito com o usuário na tela, com correção manual; processamento pesado de fotos publicadas fica nos workers do servidor.
+**Compromisso de produto:** rascunhos e identificadores de operações ficam persistidos; o servidor confirma escritas duráveis; ao reabrir o app com conexão válida, ocorre reconciliação. Horário exato de tarefas, push silencioso e continuidade após encerramento forçado são de melhor esforço. OCR será feito com o usuário na tela, com correção manual; o processamento remoto de fotos usará o serviço nativo do Storage descrito na seção 2.
 
 ## 5. Tracking e evolução da recomendação
 
@@ -131,9 +198,9 @@ Registrar `feed_impression`, `dish_view`, `restaurant_view`, `search_submitted`,
 
 Cada evento terá identificador único, versão do esquema, usuário ou sessão pseudonimizada, data do evento e de recebimento, item/categoria, origem da tela e posição na lista quando aplicável. Impressões precisam de um critério de visibilidade; curtidas, salvos e publicações serão confirmados pelo servidor para evitar aprendizado a partir de ações que falharam.
 
-O app enviará lotes com deduplicação e limite de armazenamento local. Eventos comportamentais seguirão para uma fila própria e armazenamento analítico particionado; não criaremos um trigger pesado em cada interação do banco transacional. Dados agregados de preferências poderão voltar ao banco/cache de recomendação.
+O app enviará lotes com deduplicação e limite de armazenamento local. Eventos comportamentais seguirão para uma fila pgmq própria e tabelas particionadas no Postgres, com arquivamento no Storage quando necessário; não criaremos um trigger pesado em cada interação do banco transacional. Dados agregados de preferências alimentarão as recomendações. Essa implementação usa o Supabase, preservando os eventos e os critérios de evolução abaixo.
 
-Buscas terão normalização e remoção de dados pessoais desnecessários. Não coletaremos localização precisa contínua. Proponho retenção inicial de eventos brutos por 90 dias, controles de personalização e exclusão vinculada à conta; a política final será alinhada antes do lançamento.
+Buscas terão normalização e remoção de dados pessoais desnecessários. Não coletaremos localização precisa contínua. Proponho retenção inicial de eventos brutos por 90 dias, controles de personalização e exclusão vinculada à conta; a política final será documentada antes do lançamento.
 
 ### Fase 2 — regras e similaridade de conteúdo
 
@@ -165,8 +232,10 @@ Uma implementação Swift + Kotlin exigiria duas frentes de interface e integra�
 
 ML de recomendação entra depois, apenas quando atingir o gatilho e passar na comparação. Não deve bloquear o lançamento. Cadastro/login social nativo fica preparado na base; ativação depende das credenciais e validação em ambas as plataformas.
 
-## Alinhamento pendente
+## Diretriz de execução
 
-Confirmar a proposta de React Native + Expo com build próprio; backend Supabase com API dedicada, Redis, SQS e workers; estratégia de push e limites de background; tracking e critérios de experimento; fases e critérios de carga. O volume de pico e o gatilho provisório de dados já foram escolhidos pelo usuário.
+O usuário autorizou seguir este plano sem novas confirmações rotineiras. A execução começará pela viabilidade e pelo projeto nativo separado, seguindo React Native + Expo, identidade vermelha e backend Supabase. Permanecem a meta de pico, o gatilho provisório de ML, push real, OCR no aparelho, limites de background e as fases de entrega.
 
-O próximo passo, após esse alinhamento, é criar o projeto nativo separado e executar a fase de viabilidade. Nenhum app nativo, fila nova, serviço pago ou alteração de arquitetura em produção foi iniciado por este documento.
+Essa autorização não transforma estimativas em capacidade comprovada nem elimina a diretriz de custo: usar primeiro o que já foi contratado, calcular excedentes antes dos ensaios e evitar nova despesa fixa sem evidência. Limitações de acesso ou de credenciais serão comunicadas com a causa concreta, prosseguindo com o trabalho independente que estiver disponível.
+
+Esta revisão entrega arquitetura e análise de custos. Nenhum app nativo, fila nova, teste de pico ou alteração da arquitetura de produção foi implantado por ela.
