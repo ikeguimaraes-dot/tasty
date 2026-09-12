@@ -90,7 +90,7 @@ export function Create() {
           Não, estou em outro lugar!
         </button>
         <div className="action-grid">
-          <Link to={`/write?restaurant=${place?.id || ''}`} className="action-tile green">
+          <Link to={`/write?restaurant=${place?.id || ''}`} className="action-tile brand-red">
             <span className="tile-icon">
               <Utensils />
             </span>
@@ -250,21 +250,19 @@ export function WriteReview() {
     try {
       if (!dish || !restaurant) throw new Error('Escolha o restaurante e o prato que você provou.')
       const photo = file ? await uploadPhoto(file, user!.id) : null
-      const { error } = await supabase
-        .from('reviews')
-        .insert({
-          user_id: user!.id,
-          restaurant_id: restaurant,
-          dish_id: dish,
-          rating,
-          content: content.trim(),
-          photo_url: photo,
-          kind: delivery ? 'delivery' : 'review',
-          recommend,
-          ...(delivery
-            ? { packaging_rating: service, delivery_rating: ambience }
-            : { service_rating: service, ambience_rating: ambience }),
-        })
+      const { error } = await supabase.from('reviews').insert({
+        user_id: user!.id,
+        restaurant_id: restaurant,
+        dish_id: dish,
+        rating,
+        content: content.trim(),
+        photo_url: photo,
+        kind: delivery ? 'delivery' : 'review',
+        recommend,
+        ...(delivery
+          ? { packaging_rating: service, delivery_rating: ambience }
+          : { service_rating: service, ambience_rating: ambience }),
+      })
       if (error) throw error
       await refresh()
       setSuccess(true)

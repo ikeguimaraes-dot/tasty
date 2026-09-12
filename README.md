@@ -2,6 +2,11 @@
 
 Rede social gastronômica em React, TypeScript, Tailwind CSS e Supabase, inspirada nas referências visuais do BOCA. As avaliações são vinculadas a um prato e ao restaurante que o serve.
 
+A identidade visual atual usa vermelho e creme. Esta implementação continua sendo web; a reconstrução nativa está descrita em uma proposta separada, ainda sujeita a alinhamento.
+
+- [Manual do aplicativo atual](MANUAL_TASTY.md)
+- [Proposta de arquitetura do Tasty nativo](PROPOSTA_TASTY_NATIVO.md)
+
 **Aplicativo:** https://tasty-nu-five.vercel.app
 
 **Repositório:** https://github.com/ikeguimaraes-dot/tasty

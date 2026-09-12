@@ -13,7 +13,7 @@ export function Guide({ onDone }: { onDone: () => void }) {
             icon: Utensils,
             title: 'Avaliação detalhada',
             text: 'Fotografe seu prato, dê uma nota para a comida, o serviço e o ambiente. Compartilhe o que vale a pena provar.',
-            color: 'green',
+            color: 'brand-red',
           },
           {
             icon: Zap,

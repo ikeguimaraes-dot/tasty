@@ -1,1 +1,9 @@
-{"name":"Tasty — sua mesa está pronta","short_name":"Tasty","start_url":"/","display":"standalone","background_color":"#f6f3e8","theme_color":"#287b0b","icons":[{"src":"/favicon.svg","sizes":"any","type":"image/svg+xml","purpose":"any"}]}
+{
+  "name": "Tasty — sua mesa está pronta",
+  "short_name": "Tasty",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#f6f3e8",
+  "theme_color": "#c62828",
+  "icons": [{ "src": "/favicon.svg", "sizes": "any", "type": "image/svg+xml", "purpose": "any" }]
+}
