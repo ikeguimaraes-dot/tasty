@@ -1,0 +1,20 @@
+project_id = "tasty"
+
+[auth]
+enabled = true
+site_url = "https://tasty-nu-five.vercel.app"
+additional_redirect_urls = ["https://tasty-nu-five.vercel.app/onboarding", "https://tasty-nu-five.vercel.app/auth?mode=reset", "http://localhost:5173/onboarding", "http://localhost:5173/auth?mode=reset"]
+enable_signup = true
+enable_anonymous_sign_ins = false
+minimum_password_length = 8
+
+[auth.email]
+enable_signup = true
+enable_confirmations = true
+double_confirm_changes = true
+max_frequency = "1m0s"
+otp_length = 8
+
+[auth.mfa.totp]
+enroll_enabled = true
+verify_enabled = true
